@@ -85,5 +85,63 @@ classdef tLoudness_ISO532_1_anchor < matlab.unittest.TestCase
             tc.verifyLessThan(   N70/N60, 2.3);
         end
 
+        function resamplingPreservesLoudness(tc)
+            % The filter bank is hard-coded for 48 kHz, so any other rate is
+            % resampled first. That path was previously untested. A 1 kHz
+            % tone is well inside the passband at both rates, so the two
+            % results must agree closely; any disagreement means the
+            % resampling is changing the level or the spectrum.
+            N48 = Loudness_ISO532_1(tc.tone(60, 1000, 1, 48000, tc.pref), ...
+                                    48000, 0, 1, 0, 0).Loudness;
+            N44 = Loudness_ISO532_1(tc.tone(60, 1000, 1, 44100, tc.pref), ...
+                                    44100, 0, 1, 0, 0).Loudness;
+            N32 = Loudness_ISO532_1(tc.tone(60, 1000, 1, 32000, tc.pref), ...
+                                    32000, 0, 1, 0, 0).Loudness;
+
+            tc.verifyEqual(N44, N48, 'RelTol', 0.02, sprintf( ...
+                'Resampling 44.1 -> 48 kHz changed loudness: %.4f vs %.4f sone.', N44, N48));
+            tc.verifyEqual(N32, N48, 'RelTol', 0.02, sprintf( ...
+                'Resampling 32 -> 48 kHz changed loudness: %.4f vs %.4f sone.', N32, N48));
+        end
+
+        function temporalWeightingAppliesToTotalLoudnessOnly(tc)
+            % Structural invariant of ISO 532-1. In the reference
+            % implementation the 3.5 ms / 70 ms weighting
+            % (0.47*y1 + 0.53*y2) is applied to the total loudness only -
+            % f_temporal_weight_loudness receives OutLoudness and never
+            % OutSpecLoudness (ISO_532-1.c:1014). Specific loudness carries
+            % only the upstream f_nl non-linearity.
+            %
+            % Consequence: for a short transient, N' must decay visibly
+            % faster than N. If someone ever routes the weighting through
+            % the specific loudness too, the two envelopes would coincide
+            % and this test fails.
+            fsx   = tc.fs;
+            t     = (0:round(0.5*fsx)-1).'/fsx;
+            p_rms = tc.pref * 10^(70/20);
+            insig = sqrt(2)*p_rms*sin(2*pi*1000*t) .* (t >= 0.02 & t < 0.03);
+
+            OUT = Loudness_ISO532_1(insig, fsx, 0, 2, 0, 0);
+            [~, iz] = min(abs(OUT.barkAxis - 8.5));      % band of a 1 kHz tone
+
+            [~, iN]  = max(OUT.InstantaneousLoudness);
+            [~, iNp] = max(OUT.InstantaneousSpecificLoudness(:,iz));
+
+            tc.verifyLessThan(iNp, iN, sprintf( ...
+                ['Specific loudness peaks at t = %.3f s and total loudness at ' ...
+                 't = %.3f s. N'' must peak EARLIER, because the temporal ' ...
+                 'weighting is applied to N only.'], ...
+                OUT.time(iNp), OUT.time(iN)));
+
+            % ... and it must also have decayed further by a fixed later time
+            k   = find(OUT.time >= 0.09, 1);
+            rN  = OUT.InstantaneousLoudness(k) / max(OUT.InstantaneousLoudness);
+            rNp = OUT.InstantaneousSpecificLoudness(k,iz) / ...
+                  max(OUT.InstantaneousSpecificLoudness(:,iz));
+            tc.verifyLessThan(rNp, rN, sprintf( ...
+                ['At t = 90 ms, N'' has decayed to %.3f of its peak but N only ' ...
+                 'to %.3f. The unweighted quantity must decay faster.'], rNp, rN));
+        end
+
     end
 end

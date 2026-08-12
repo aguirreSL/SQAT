@@ -36,14 +36,17 @@ disp('');
          
 %% validation
 
+all_ok = true;
+
 for i=6:13
 
-[OUT.L{i-5},OUT.RefScalar{i-5}]=compute_and_plot(i,...     % insig_num
+[OUT.L{i-5},OUT.RefScalar{i-5},ok_i]=compute_and_plot(i,...     % insig_num
                                                  char(signal_str(1,i-5)),... % insig name str
                                                  save_figs,['validation_time_varying_loudness_signal_' sprintf('%g',i)],...
                                                  ['validation_time_varying_loudness_signal_' sprintf('%g',i) '_specific_loudness']...% savefig inputs
                                                   );
-end 
+all_ok = ok_i && all_ok;
+end
 
 %% summary of differences between reference and calculated loudness
 
@@ -116,9 +119,20 @@ if save_figs==1
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%% verdict
+% Raised after the figures are produced, so a failure still leaves the plots
+% on disk to inspect. Before this existed the script plotted the tolerance
+% envelope but never checked against it, and reported agreement while
+% signals 6, 9 and 10 sat outside the 10% band.
+if all_ok
+    fprintf('\n%s.m: PASS - all signals inside the ISO 532-1 tolerance envelopes.\n', mfilename);
+else
+    error('%s: FAIL - one or more signals fall outside the ISO 532-1 tolerance envelopes (see the FAIL lines above).', mfilename);
+end
+
 %% function (compute loudness and plot comparison
 
-function [OUT,table]=compute_and_plot(insig_num,fname_insig,save_figs,tag,tag_2)
+function [OUT,table,ok]=compute_and_plot(insig_num,fname_insig,save_figs,tag,tag_2)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -226,13 +240,13 @@ n_outside_5  = sum( N_on_ref_grid < reference(:,3) | N_on_ref_grid > reference(:
 n_outside_10 = sum( N_on_ref_grid < reference(:,5) | N_on_ref_grid > reference(:,6) );
 n_points     = size(reference,1);
 
-if n_outside_10 == 0
-    verdict = 'inside the 10% envelope';
-else
-    verdict = sprintf('*** %d points OUTSIDE the 10%% envelope ***', n_outside_10);
-end
-fprintf('Signal %g: %d/%d points outside 5%% tolerance, %s\n', ...
-        insig_num, n_outside_5, n_points, verdict);
+% ISO 532-1 allows the 5% band to be exceeded for at most 1% of samples,
+% provided the 10% band is never exceeded.
+ok =        check_tolerance(n_outside_10, 0, 0, ...
+                sprintf('signal %g: points outside 10%% envelope', insig_num));
+ok = ok &&  check_tolerance(n_outside_5/n_points, 0, 0.01, ...
+                sprintf('signal %g: fraction outside 5%% envelope', insig_num), ...
+                'Mode', 'relative');
 
 % plot reference values
 

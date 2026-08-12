@@ -53,7 +53,13 @@ function T = bench_Loudness_ISO532_1(signals)
     fprintf(' sig | audio (s) | time (s) | x realtime | name\n');
     fprintf('%s\n', repmat('-', 1, 58));
 
-    num = []; dur = []; sec = []; nm = strings(0);
+    nSig = numel(signals);
+    num  = zeros(nSig,1);
+    dur  = zeros(nSig,1);
+    sec  = zeros(nSig,1);
+    nm   = strings(nSig,1);
+    k    = 0;
+
     for n = signals
         d = dir(fullfile(snd, sprintf('Test signal %d (*.wav', n)));
         if isempty(d)
@@ -72,11 +78,13 @@ function T = bench_Loudness_ISO532_1(signals)
         fprintf(' %3d | %9.1f | %8.2f | %9.1fx | %s\n', ...
                 n, numel(y)/fs, el, (numel(y)/fs)/el, name);
 
-        num(end+1,1) = n;           %#ok<AGROW>
-        dur(end+1,1) = numel(y)/fs; %#ok<AGROW>
-        sec(end+1,1) = el;          %#ok<AGROW>
-        nm(end+1,1)  = string(name);%#ok<AGROW>
+        k        = k + 1;
+        num(k)   = n;
+        dur(k)   = numel(y)/fs;
+        sec(k)   = el;
+        nm(k)    = string(name);
     end
+    num = num(1:k); dur = dur(1:k); sec = sec(1:k); nm = nm(1:k);
 
     fprintf('%s\n', repmat('-', 1, 58));
     fprintf(' TOTAL %9.1f s of audio in %.2f s  (%.1fx realtime)\n\n', ...

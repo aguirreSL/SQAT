@@ -53,11 +53,63 @@ for n in 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25; do
     "$ORACLE" tv "$f" "$CAL" 60 "$OUT/${tag}_timevarying.csv"
 done
 
+# --- specific loudness -----------------------------------------------------
+# Annex B.3 tabulates the full 240-band pattern for stationary signals;
+# Annex B.4 tabulates N'(t) at ONE Bark band per time-varying signal. Match
+# that convention rather than dumping the whole 240-by-time matrix.
+for n in 2 3 4 5; do
+    f=$(ls "$SOUNDS"/"Test signal $n ("*.wav 2>/dev/null | head -1) || true
+    [ -n "$f" ] || continue
+    "$ORACLE" stp "$f" "$CAL" 60 0 "$OUT/$(printf 'sig%02d' $n)_stationary_pattern.csv"
+done
+[ -f "$LEVELS" ] && "$ORACLE" lvp "$LEVELS" "$OUT/sig01_stationary_levels_pattern.csv"
+
+# Bark band used by the standard for each time-varying synthetic signal
+spec_bark() {
+    case "$1" in
+        6)              echo 2.5  ;;
+        8|9)            echo 17.5 ;;
+        7|10|11|12|13)  echo 8.5  ;;
+        *)              echo ""   ;;
+    esac
+}
+for n in 6 7 8 9 10 11 12 13; do
+    f=$(ls "$SOUNDS"/"Test signal $n ("*.wav 2>/dev/null | head -1) || true
+    [ -n "$f" ] || continue
+    b=$(spec_bark $n)
+    "$ORACLE" tvb "$f" "$CAL" 60 "$b" "$OUT/$(printf 'sig%02d' $n)_specific_${b}Bark.csv"
+done
+
+# --- diffuse field ---------------------------------------------------------
+# The DDF table (20 entries) is only exercised with field = 1, so cover a few
+# signals across the frequency range rather than leaving it untested.
+for n in 3 6 8 10 14; do
+    f=$(ls "$SOUNDS"/"Test signal $n ("*.wav 2>/dev/null | head -1) || true
+    [ -n "$f" ] || continue
+    tag=$(printf 'sig%02d' $n)
+    if [ "$n" -le 5 ]; then
+        "$ORACLE" st "$f" "$CAL" 60 0 "$OUT/${tag}_stationary_diffuse.csv" D
+    else
+        "$ORACLE" tv "$f" "$CAL" 60 "$OUT/${tag}_timevarying_diffuse.csv" D
+    fi
+done
+[ -f "$LEVELS" ] && "$ORACLE" lv "$LEVELS" "$OUT/sig01_stationary_levels_diffuse.csv" D
+
+# --- non-zero time_skip (stationary) ---------------------------------------
+# time_skip changes which part of the signal feeds the level calculation.
+# Untested until now, and the code path differs from time_skip = 0.
+for n in 2 3 5; do
+    f=$(ls "$SOUNDS"/"Test signal $n ("*.wav 2>/dev/null | head -1) || true
+    [ -n "$f" ] || continue
+    "$ORACLE" st "$f" "$CAL" 60 0.2 "$OUT/$(printf 'sig%02d' $n)_stationary_skip0p2.csv"
+done
+
 # --- anchor: 1 kHz at 40 dB SPL, must yield 1 sone (Annex C) ---------------
 ANCHOR="$ISO_DIR/Annex C/sine 1kHz 40dB 16bit.wav"
 if [ -f "$ANCHOR" ]; then
-    "$ORACLE" tv "$ANCHOR" "$CAL" 60 "$OUT/anchor_1kHz_40dB_timevarying.csv"
-    "$ORACLE" st "$ANCHOR" "$CAL" 60 0 "$OUT/anchor_1kHz_40dB_stationary.csv"
+    "$ORACLE" tv  "$ANCHOR" "$CAL" 60 "$OUT/anchor_1kHz_40dB_timevarying.csv"
+    "$ORACLE" st  "$ANCHOR" "$CAL" 60 0 "$OUT/anchor_1kHz_40dB_stationary.csv"
+    "$ORACLE" stp "$ANCHOR" "$CAL" 60 0 "$OUT/anchor_1kHz_40dB_pattern.csv"
 else
     echo "skip: $ANCHOR not found"
 fi

@@ -13,12 +13,20 @@
 /*  in test/golden/ are committed so the test suite runs without them.  */
 /*                                                                      */
 /*  Usage:                                                              */
-/*    iso532_oracle tv <sig.wav> <cal.wav> <cal_dB> <out.csv> [spec.csv]*/
-/*        time-varying loudness, N(t) at SR_LEVEL = 2000 Hz            */
-/*    iso532_oracle st <sig.wav> <cal.wav> <cal_dB> <skip> <out.csv>    */
-/*        stationary loudness from a signal, single value              */
-/*    iso532_oracle lv <levels.txt> <out.csv> [spec.csv]                */
-/*        stationary loudness from 28 third-octave levels              */
+/*    iso532_oracle tv  <sig.wav> <cal.wav> <cal_dB> <out.csv>          */
+/*        time-varying total loudness N(t), on the 500 Hz output grid   */
+/*    iso532_oracle tvb <sig.wav> <cal.wav> <cal_dB> <bark> <out.csv>   */
+/*        time-varying specific loudness N'(z0,t) at one Bark band, on  */
+/*        the same grid. This mirrors what Annex B.4 tabulates: a       */
+/*        single band per test signal (2.5, 8.5 or 17.5 Bark).          */
+/*    iso532_oracle st  <sig.wav> <cal.wav> <cal_dB> <skip> <out.csv>   */
+/*        stationary loudness from a signal, single value               */
+/*    iso532_oracle stp <sig.wav> <cal.wav> <cal_dB> <skip> <out.csv>   */
+/*        stationary specific loudness pattern, 240 values (Annex B.3)  */
+/*    iso532_oracle lv  <levels.txt> <out.csv>                          */
+/*        stationary loudness from 28 third-octave levels               */
+/*    iso532_oracle lvp <levels.txt> <out.csv>                          */
+/*        stationary specific loudness pattern from those levels        */
 /*                                                                      */
 /*  Add D as a trailing argument to any subcommand for diffuse field.   */
 /************************************************************************/
@@ -116,50 +124,66 @@ static int rd_levels(const char *path, double *lvl)
     return 0;
 }
 
-static void wr_spec(const char *path, double *S[N_BARK_BANDS], int nt)
+/*  Specific loudness pattern for a single time frame: 240 values.
+    This is what Annex B.3 tabulates for stationary signals.            */
+static void wr_pattern(const char *path, double *S[N_BARK_BANDS], int frame)
 {
-    FILE *o; int b, t;
-    if (!path) return;
+    FILE *o; int b;
     o = fopen(path, "w");
-    fprintf(o, "bark");
-    for (t = 0; t < nt; t++) fprintf(o, ",t%d", t);
-    fprintf(o, "\n");
+    fprintf(o, "bark,Nprime\n");
     for (b = 0; b < N_BARK_BANDS; b++)
-    {
-        fprintf(o, "%.1f", (b + 1) / 10.0);
-        for (t = 0; t < nt; t++) fprintf(o, ",%.10f", S[b][t]);
-        fprintf(o, "\n");
-    }
+        fprintf(o, "%.1f,%.8f\n", (b + 1) / 10.0, S[b][frame]);
+    fclose(o);
+}
+
+/*  Specific loudness at one Bark band versus time, on the SR_LOUDNESS
+    grid. Annex B.4 tabulates exactly this - one band per test signal -
+    rather than the full 240-by-time matrix, which would be enormous.   */
+static void wr_band(const char *path, double *S[N_BARK_BANDS],
+                    int nt, double bark)
+{
+    FILE *o; int t, dec = SR_LEVEL / SR_LOUDNESS;
+    int b = (int)(bark * 10.0 + 0.5) - 1;          /* 0.1 Bark -> index 0 */
+    if (b < 0) b = 0;
+    if (b > N_BARK_BANDS - 1) b = N_BARK_BANDS - 1;
+    o = fopen(path, "w");
+    fprintf(o, "t,Nprime_at_%.1fBark\n", (b + 1) / 10.0);
+    for (t = 0; t < nt; t += dec)
+        fprintf(o, "%.4f,%.8f\n", t / (double)SR_LEVEL, S[b][t]);
     fclose(o);
 }
 
 int main(int argc, char **argv)
 {
     double *N = NULL, *S[N_BARK_BANDS];
-    int i, nlev = 1, ret, field = SoundFieldFree;
-    const char *mode, *specout = NULL, *out = NULL;
+    double bark = 0;
+    int i, ret, field = SoundFieldFree;
+    int wantPattern = 0, wantBand = 0;
+    const char *mode, *out = NULL;
 
     if (argc < 3) { fprintf(stderr, "usage: see header of %s\n", __FILE__); return 2; }
     mode = argv[1];
     for (i = 1; i < argc; i++) if (!strcmp(argv[i], "D")) field = SoundFieldDiffuse;
 
-    if (!strcmp(mode, "lv"))                        /* ---- from levels ---- */
+    wantPattern = (!strcmp(mode, "stp") || !strcmp(mode, "lvp"));
+    wantBand    = !strcmp(mode, "tvb");
+
+    if (!strncmp(mode, "lv", 2))                    /* ---- from levels ---- */
     {
         double lvl[N_LEVEL_BANDS], *TOL[N_LEVEL_BANDS];
-        if (argc < 4) { fprintf(stderr, "usage: lv <levels.txt> <out.csv> [spec.csv]\n"); return 2; }
+        if (argc < 4) { fprintf(stderr, "usage: %s <levels.txt> <out.csv>\n", mode); return 2; }
         if (rd_levels(argv[2], lvl)) return 1;
-        out = argv[3]; specout = (argc > 4 && strcmp(argv[4],"D")) ? argv[4] : NULL;
+        out = argv[3];
 
         for (i = 0; i < N_LEVEL_BANDS; i++) TOL[i] = &lvl[i];
         N = (double*)calloc(1, sizeof(double));
         for (i = 0; i < N_BARK_BANDS; i++) S[i] = (double*)calloc(1, sizeof(double));
         ret = f_loudness_from_levels(TOL, 1, field, LoudnessMethodStationary, N, S);
-        nlev = 1;
     }
     else                                            /* ---- from signal ---- */
     {
         double *sig, *cal, sr, csr, k, skip = 0;
-        int ns, nc, meth;
+        int ns, nc, meth, nlev;
         struct InputData in;
 
         if (argc < 6) { fprintf(stderr, "usage: see header of %s\n", __FILE__); return 2; }
@@ -171,20 +195,28 @@ int main(int argc, char **argv)
 
         in.NumSamples = ns; in.SampleRate = sr; in.pData = sig;
 
-        if (!strcmp(mode, "st"))
+        if (!strncmp(mode, "st", 2))                /* st, stp */
         {
             meth = LoudnessMethodStationary;
             skip = atof(argv[5]);
             out  = argv[6];
             nlev = 1;
         }
-        else
+        else if (wantBand)                          /* tvb <bark> <out> */
+        {
+            if (argc < 7) { fprintf(stderr, "usage: tvb <sig> <cal> <dB> <bark> <out.csv>\n"); return 2; }
+            meth = LoudnessMethodTimeVarying;
+            bark = atof(argv[5]);
+            out  = argv[6];
+            nlev = ns / (int)(sr / SR_LEVEL);
+        }
+        else                                        /* tv */
         {
             meth = LoudnessMethodTimeVarying;
             out  = argv[5];
-            specout = (argc > 6 && strcmp(argv[6],"D")) ? argv[6] : NULL;
             nlev = ns / (int)(sr / SR_LEVEL);
         }
+        if (!out) { fprintf(stderr, "iso532_oracle: missing output path\n"); return 2; }
 
         N = (double*)calloc((size_t)nlev, sizeof(double));
         for (i = 0; i < N_BARK_BANDS; i++) S[i] = (double*)calloc((size_t)nlev, sizeof(double));
@@ -194,11 +226,23 @@ int main(int argc, char **argv)
 
     if (ret < 0) { fprintf(stderr, "iso532_oracle: reference library error %d\n", ret); return 1; }
 
-    /*  Time-varying results are emitted on the SR_LOUDNESS = 500 Hz grid,
-        which is what the ISO reference main program reports and what SQAT's
-        OUT.time / OUT.InstantaneousLoudness use. Stationary results are a
-        single value and are written as-is.                                 */
+    if (wantPattern)                    /* 240-point specific loudness pattern */
     {
+        wr_pattern(out, S, 0);
+        fprintf(stderr, "iso532_oracle: %s -> %s (%d Bark bands)\n",
+                mode, out, N_BARK_BANDS);
+    }
+    else if (wantBand)                  /* N'(z0,t) at one Bark band, 500 Hz */
+    {
+        wr_band(out, S, ret, bark);
+        fprintf(stderr, "iso532_oracle: %s -> %s (%.1f Bark, %d samples @ %d Hz)\n",
+                mode, out, bark, (ret + 3) / 4, SR_LOUDNESS);
+    }
+    else                                /* total loudness */
+    {
+        /*  Emitted on the SR_LOUDNESS = 500 Hz grid, which is what the ISO
+            reference main program reports and what SQAT's OUT.time /
+            OUT.InstantaneousLoudness use. Stationary is a single value.   */
         int dec = (ret > 1) ? (SR_LEVEL / SR_LOUDNESS) : 1;
         int nw  = 0;
         FILE *o = fopen(out, "w");
@@ -211,6 +255,5 @@ int main(int argc, char **argv)
                 mode, out, nw, nw == 1 ? "" : "s",
                 (ret > 1) ? SR_LOUDNESS : 1);
     }
-    wr_spec(specout, S, ret);
     return 0;
 }

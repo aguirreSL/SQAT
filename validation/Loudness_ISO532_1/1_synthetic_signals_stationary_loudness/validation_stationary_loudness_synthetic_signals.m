@@ -35,11 +35,20 @@ signal_str= {[-60 -60 78 79 89 72 80 89 75 87 85 79 86 80 71 70 72 71 72 74 69 6
  
 num_signals = length(signal_str);
 
+all_ok = true;
+
 for i=1:num_signals
 
-    [OUT.L{i},OUT.RefScalar{i}]=il_compute_and_plot(i,...     % insig_num
+    [OUT.L{i},OUT.RefScalar{i},ok_i]=il_compute_and_plot(i,...     % insig_num
                                             signal_str{i},... % insig name str
                                              save_figs);      % savefig inputs
+    all_ok = ok_i && all_ok;
+end
+
+if all_ok
+    fprintf('\n%s.m: PASS - all stationary signals inside the ISO 532-1 tolerance.\n', mfilename);
+else
+    error('%s: FAIL - one or more stationary signals outside tolerance (see the FAIL lines above).', mfilename);
 end
 disp('')
 
@@ -101,7 +110,7 @@ end
 
 %% function (compute loudness and plot comparison
 
-function [OUT,table] = il_compute_and_plot(insig_num,fname_insig,save_figs)
+function [OUT,table,ok] = il_compute_and_plot(insig_num,fname_insig,save_figs)
 % function [OUT,table] = il_compute_and_plot(insig_num,fname_insig,save_figs)
 %
 % this function computes the loudness using SQAT and plot the comparison
@@ -212,6 +221,14 @@ percentage_difference_loudness_level=( (OUT.LoudnessLevel-reference_loudness_lev
 % 1st row = total loudness, 2nd row = loudness levels
 table=[ reference_loudness, OUT.Loudness, difference_loudness, percentage_difference_loudness;
             reference_loudness_level, OUT.LoudnessLevel, difference_loudness_level, percentage_difference_loudness_level ];
+
+% ISO 532-1 criterion for stationary loudness: +-5 % or +-0.1 sone,
+% whichever is the larger.
+tol_loudness = max(0.05*reference_loudness, 0.1);
+ok =       check_tolerance(OUT.Loudness, reference_loudness, tol_loudness, ...
+               sprintf('signal %g: loudness', insig_num), 'Unit', 'sone');
+ok = ok && check_tolerance(OUT.LoudnessLevel, reference_loudness_level, 0.5, ...
+               sprintf('signal %g: loudness level', insig_num), 'Unit', 'phon');
 
 %% plot results (specific loudness)
 
