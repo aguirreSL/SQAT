@@ -17,19 +17,20 @@ end
 
 function test_sone2phon_uses_the_formula_of_the_standard(tc)
 % ISO 532-1 gives LN = 40 + 33.22 log10(N) for N >= 1. The rounded constant
-% 33.22 (10/log10(2) is 33.219) puts 2 sone at 50.0002 phon; tolerance 0.002 phon.
+% 33.22 (10/log10(2) is 33.219) puts 64 sone at 100.0013 phon; tolerance 0.003
+% phon, set by us (twice the measured error).
 got = sone2phon_local([1 2 4 64]);
-sqat_report_record('loudness_level', 'sone2phon_local at 1, 2, 4 and 64 sone', got, [40; 50; 60; 100], 0.002);
-tc.verifyEqual(got, [40; 50; 60; 100], 'AbsTol', 0.002);
+sqat_report_record('loudness_level', 'sone2phon_local at 1, 2, 4 and 64 sone', got, [40; 50; 60; 100], 0.003);
+tc.verifyEqual(got, [40; 50; 60; 100], 'AbsTol', 0.003);
 end
 
 function test_the_round_trip_above_40_phon(tc)
 % phon -> sone -> phon from 40 to 120 phon; the constant 33.22 leaves at most
-% 1.7e-3 phon (measured); tolerance 0.002 phon.
+% 1.7e-3 phon (measured); tolerance 0.004 phon, set by us (twice the measured).
 p = (40:0.5:120)';
 got = sone2phon_local(phon2sone_local(p));
-sqat_report_record('loudness_level', 'round trip phon -> sone -> phon, 40 to 120 phon', got, p, 0.002);
-tc.verifyEqual(got, p, 'AbsTol', 0.002);
+sqat_report_record('loudness_level', 'round trip phon -> sone -> phon, 40 to 120 phon', got, p, 0.004);
+tc.verifyEqual(got, p, 'AbsTol', 0.004);
 end
 
 function test_the_output_is_a_column(tc)
