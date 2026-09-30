@@ -1,5 +1,5 @@
 # Nightly tests of this fork: brings in the main of ggrecow/SQAT, runs test/
-# (sqat_report_build) and keeps the report of the run. When every test passes,
+# (sqat_report_build) and publishes the report of the run on GitHub Pages. When every test passes,
 # the merge is pushed, so this main follows the upstream one with the tests on top.
 name: tests
 
@@ -10,10 +10,15 @@ on:
 
 permissions:
   contents: write
+  pages: write                   # the report on https://aguirresl.github.io/SQAT/
+  id-token: write
 
 jobs:
   tests:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,6 +48,15 @@ jobs:
         with:
           name: test-report
           path: test/report/out/
+
+      - uses: actions/upload-pages-artifact@v3
+        if: always()
+        with:
+          path: test/report/out/
+
+      - id: pages
+        uses: actions/deploy-pages@v4
+        if: always()
 
       - name: Push the merge
         run: git push origin HEAD:main
