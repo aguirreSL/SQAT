@@ -14,7 +14,7 @@ function test_the_reference_signal_is_1_vacil(tc)
 % at 4 Hz, should yield 1 vacil. Tolerance 0.02 vacil, set by us (measured
 % 1.006 on 5 s).
 [~, O] = evalc('FluctuationStrength_Osses2016(il_am(60, 4), 48000, 1, 0.5, false)');
-sqat_report_record('fluctuation_strength', 'fluctuation strength of the reference signal (1 vacil)', O.FSmean, 1, 0.02);
+sqat_report_record('fluctuation_strength', 'fluctuation strength of the reference signal (1 vacil)', O.FSmean, 1, 0.02, 'set by us; no published tolerance (measured 0.006)');
 tc.verifyEqual(O.FSmean, 1, 'AbsTol', 0.02);
 end
 

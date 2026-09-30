@@ -48,7 +48,7 @@ for k = 1:5
         [~, O] = evalc('Loudness_ISO532_1(x * tc.TestData.gain, fs, 0, 1, 0, false)');
     end
     tol = max(0.05 * N_ref(k), 0.1);
-    sqat_report_record('loudness_iso532_1', sprintf('signal %d, total loudness (sone)', k), O.Loudness, N_ref(k), tol);
+    sqat_report_record('loudness_iso532_1', sprintf('signal %d, total loudness (sone)', k), O.Loudness, N_ref(k), tol, 'ISO 532-1:2017, 5 % or 0.1 sone');
     tc.verifyEqual(O.Loudness, N_ref(k), 'AbsTol', tol, sprintf('signal %d, total loudness', k));
     R = il_ref(tc, '1_synthetic_signals_stationary_loudness', k);    % [Bark, N'ref, N'min, N'max]
     s = interp1(O.barkAxis, O.SpecificLoudness, R(:, 1));
@@ -100,11 +100,11 @@ u(up) = (x(up) - ref(up)) ./ max(hi5(up) - ref(up), eps);
 u(~up) = (ref(~up) - x(~up)) ./ max(ref(~up) - lo5(~up), eps);
 out5 = x < lo5 - 1e-9 | x > hi5 + 1e-9;
 if isempty(lo10)
-    sqat_report_record('loudness_iso532_1', [what ', 5 % envelope'], u, zeros(size(u)), 1);
+    sqat_report_record('loudness_iso532_1', [what ', 5 % envelope'], u, zeros(size(u)), 1, 'ISO 532-1:2017, envelope of 5 % or 0.1 within 2 ms');
     tc.verifyEqual(nnz(out5), 0, [what ': samples outside the 5 % envelope']);
 else
     in = ~out5;
-    sqat_report_record('loudness_iso532_1', [what ', 5 % envelope (99 % of the samples)'], sort(u(in)), zeros(nnz(in), 1), 1);
+    sqat_report_record('loudness_iso532_1', [what ', 5 % envelope (99 % of the samples)'], sort(u(in)), zeros(nnz(in), 1), 1, 'ISO 532-1:2017, 5 % envelope; up to 1 % of the samples to 10 %');
     tc.verifyLessThanOrEqual(nnz(out5) / numel(x), 0.01, [what ': more than 1 % outside the 5 % envelope']);
     tc.verifyEqual(nnz(x < lo10 - 1e-9 | x > hi10 + 1e-9), 0, [what ': samples outside the 10 % envelope']);
 end

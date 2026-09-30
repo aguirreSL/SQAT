@@ -21,7 +21,7 @@ X(~((f >= 920 & f <= 1080) | (f >= 48000-1080 & f <= 48000-920))) = 0;
 x = real(ifft(X));
 x = x / rms(x) * 2e-5 * 10^(60/20);
 [~, O] = evalc('Sharpness_DIN45692(x, 48000, ''DIN45692'', 0, 2, 0.5, false, false)');
-sqat_report_record('sharpness_din45692', 'sharpness of the reference noise (1 acum)', O.Smean, 1, 0.045);
+sqat_report_record('sharpness_din45692', 'sharpness of the reference noise (1 acum)', O.Smean, 1, 0.045, 'DIN 45692:2009, range of k from 0.105 to 0.115');
 tc.verifyEqual(O.Smean, 1, 'AbsTol', 0.045);
 end
 

@@ -12,7 +12,7 @@ function test_60_dB_at_1_kHz_is_1_tu(tc)
 % Reference of the help: a pure tone of 1 kHz and 60 dB SPL has a tonality
 % of 1 t.u. Tolerance 0.01 t.u., set by us.
 [~, O] = evalc('Tonality_Aures1985(il_tone(60, 1000), 48000, 0, 0.5, false)');
-sqat_report_record('tonality_aures1985', 'tonality of 1 kHz, 60 dB (1 t.u.)', O.Kmean, 1, 0.01);
+sqat_report_record('tonality_aures1985', 'tonality of 1 kHz, 60 dB (1 t.u.)', O.Kmean, 1, 0.01, 'set by us; no published tolerance (measured 3e-5)');
 tc.verifyEqual(O.Kmean, 1, 'AbsTol', 0.01);
 end
 

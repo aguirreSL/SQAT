@@ -27,7 +27,7 @@ for z = 1:53
     g(z) = 20 * log10(r(z));
     [~, best(z)] = max(r);
 end
-sqat_report_record('shm', 'filter bank gain at F(z), z = 3.5 to 26.5 (dB)', g(7:end), zeros(1, 47), 0.05);
+sqat_report_record('shm', 'filter bank gain at F(z), z = 3.5 to 26.5 (dB)', g(7:end), zeros(1, 47), 0.05, 'set by us: the gain ''varies slightly'' (ECMA-418-2, 5.1.4.1); measured 0.02 dB');
 tc.verifyEqual(g(7:end), zeros(1, 47), 'AbsTol', 0.05);
 tc.verifyEqual(best, 1:53);
 end

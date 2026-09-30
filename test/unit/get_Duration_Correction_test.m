@@ -15,7 +15,7 @@ function test_a_plateau_of_10_s_gives_no_correction(tc)
 % plus 0.002 dB from the first step below the 10 dB down point, which the
 % sum includes; tolerance 0.01 dB.
 [D, t1, t2] = il_plateau(20);
-sqat_report_record('epnl', 'duration correction of a 10 s plateau', D, 0, 0.01);
+sqat_report_record('epnl', 'duration correction of a 10 s plateau', D, 0, 0.01, 'set by us: the step below the down point adds 0.002 dB');
 tc.verifyEqual(D, 0, 'AbsTol', 0.01);
 tc.verifyEqual([t1 t2], [11 31]);
 end
@@ -24,7 +24,7 @@ function test_twice_the_duration_adds_3_dB(tc)
 % Doubling the time above the down points doubles the energy:
 % D rises by 10 log10(2) = 3.01 dB; tolerance 0.005 dB.
 D = il_plateau(40) - il_plateau(20);
-sqat_report_record('epnl', 'duration correction, 20 s against 10 s', D, 10*log10(2), 0.005);
+sqat_report_record('epnl', 'duration correction, 20 s against 10 s', D, 10*log10(2), 0.005, 'set by us (measured 0.001)');
 tc.verifyEqual(D, 10*log10(2), 'AbsTol', 0.005);
 end
 

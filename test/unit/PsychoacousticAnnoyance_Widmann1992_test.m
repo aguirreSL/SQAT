@@ -14,7 +14,7 @@ function test_40_dB_at_1_kHz_is_1_au(tc)
 % model, with an annoyance of 1 au (help of the function). Tolerance 0.01 au,
 % set by us (measured 1.003 on 5 s).
 [~, O] = evalc('PsychoacousticAnnoyance_Widmann1992(il_tone(40), 48000, 0, 0.5, false, false)');
-sqat_report_record('annoyance', 'annoyance of 1 kHz, 40 dB (1 au)', O.PAmean, 1, 0.01);
+sqat_report_record('annoyance', 'annoyance of 1 kHz, 40 dB (1 au)', O.PAmean, 1, 0.01, 'set by us; no published tolerance (measured 0.003)');
 tc.verifyEqual(O.PAmean, 1, 'AbsTol', 0.01);
 end
 

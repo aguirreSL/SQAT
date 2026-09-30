@@ -28,7 +28,7 @@ for k = 1:size(steps, 1)
     got = O.(steps{k, 1})(1:24);
     want = T(:, steps{k, 2});
     ok = isfinite(want);
-    sqat_report_record('epnl', ['ICAO Doc 9501 Table 3.7, ' steps{k, 3}], got(ok), want(ok), 0.01);
+    sqat_report_record('epnl', ['ICAO Doc 9501 Table 3.7, ' steps{k, 3}], got(ok), want(ok), 0.01, 'ICAO Doc 9501 prints 2 to 6 decimals');
     tc.verifyEqual(got(ok), want(ok), 'AbsTol', 0.01, steps{k, 3});
 end
 F = T(:, 10);
@@ -37,7 +37,7 @@ low = T(:, 2) < 500 | T(:, 2) > 5000;
 C(F >= 1.5 & F < 3) = il_if(low(F >= 1.5 & F < 3), F(F >= 1.5 & F < 3)/3 - 1/2, 2*F(F >= 1.5 & F < 3)/3 - 1);
 C(F >= 3 & F < 20) = il_if(low(F >= 3 & F < 20), F(F >= 3 & F < 20)/6, F(F >= 3 & F < 20)/3);
 C(F >= 20) = il_if(low(F >= 20), 10/3, 20/3);
-sqat_report_record('epnl', 'step 9, C, against Table A36-2 on the F of Table 3.7', O.C(1:24), C, 0.01);
+sqat_report_record('epnl', 'step 9, C, against Table A36-2 on the F of Table 3.7', O.C(1:24), C, 0.01, 'numerical: Table A36-2 of 14 CFR Part 36');
 tc.verifyEqual(O.C(1:24), C, 'AbsTol', 0.01, 'step 9, C');
 end
 

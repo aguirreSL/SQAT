@@ -12,7 +12,7 @@ function test_40_dB_at_1_kHz_is_1_sone_HMS(tc)
 % 5.1.8: cN is set so that a 1 kHz sinusoid of 40 dB has a total loudness of
 % 1 sone_HMS; footnote 9 allows cN a tolerance of 0.25 %.
 [~, O] = evalc('Loudness_ECMA418_2(il_tone(40, 1000), 48000, ''free-frontal'', 0.304, false)');
-sqat_report_record('loudness_ecma418_2', 'loudness of 1 kHz, 40 dB (1 sone_HMS)', O.loudnessPowAvg, 1, 0.0025);
+sqat_report_record('loudness_ecma418_2', 'loudness of 1 kHz, 40 dB (1 sone_HMS)', O.loudnessPowAvg, 1, 0.0025, 'ECMA-418-2:2025, footnote 9 (0.25 % on cN)');
 tc.verifyEqual(O.loudnessPowAvg, 1, 'AbsTol', 0.0025);
 end
 

@@ -246,7 +246,7 @@ function cmpCell(x) {
   const rs = RBT[x.name] || [];
   if (!rs.length) return `<td data-v="-1">-</td>`;
   const w = rs.reduce((a, r) => Math.max(a, r.util), 0);
-  return `<td data-v="${w}"><details><summary>${t2("{0} comp. · pior {1}", "{0} comp. · worst {1}", rs.length, w === 0 ? t2("0 (exato)", "0 (exact)") : sci(w, 1))}</summary><table>${cap(t2("Erro de cada comparacao deste teste", "Error of each comparison of this test"))}<thead><tr><th>${t2("Caso", "Case")}</th><th>${t2("Erro abs", "Abs error")}</th><th>${t2("Utilizacao", "Utilization")}</th></tr></thead><tbody>${rs.map(r => `<tr><td>${esc(r.case)}</td><td class="num">${sci(r.max_abs)}</td><td>${utilBar(r.util)}</td></tr>`).join("")}</tbody></table></details></td>`;
+  return `<td data-v="${w}"><details><summary>${t2("{0} comp. · pior {1}", "{0} comp. · worst {1}", rs.length, w === 0 ? t2("0 (exato)", "0 (exact)") : sci(w, 1))}</summary><table>${cap(t2("Erro de cada comparacao deste teste", "Error of each comparison of this test"))}<thead><tr><th>${t2("Caso", "Case")}</th><th>${t2("Erro abs", "Abs error")}</th><th>${t2("Tolerancia", "Tolerance")}</th><th>${t2("Fonte", "Source")}</th><th>${t2("Utilizacao", "Utilization")}</th></tr></thead><tbody>${rs.map(r => `<tr><td>${esc(r.case)}</td><td class="num">${sci(r.max_abs)}</td><td>${esc(tolText(r))}</td><td lang="en">${esc(r.source || "-")}</td><td>${utilBar(r.util)}</td></tr>`).join("")}</tbody></table></details></td>`;
 }
 function testsTable(ts, showBlock) {
   let h = `<div class="tw"><table class="tt">${cap(t2("Testes", "Tests"))}<thead><tr><th>Status</th>${showBlock ? `<th>${t2("Bloco", "Block")}</th>` : ""}<th>${t2("Teste", "Test")}</th><th>${t2("Comparacoes medidas", "Measured comparisons")}</th><th>${t2("Tempo (s)", "Time (s)")}</th></tr></thead><tbody>`;
@@ -276,8 +276,8 @@ function blockSummary(rs) {
     rs.length, esc(cut(w.case, 70)), sci(w.max_abs), fmtPct(w.util), w.util < 1 ? t2(", ou seja, {0} de folga", ", that is, {0} of margin", fmtMargin(w.util)) : "");
 }
 function errTable(rs) {
-  let h = `<div class="tw"><table>${cap(t2("Erro medido", "Measured error"))}<thead><tr><th>${t2("Teste", "Test")}</th><th>${t2("Caso", "Case")}</th><th>n</th><th>${t2("Erro abs max", "Max abs error")}</th><th>${t2("Erro rel max", "Max rel error")}</th><th>${t2("Tolerancia", "Tolerance")}</th><th>${t2("Utilizacao", "Utilization")}</th><th>${t2("Margem", "Margin")}</th></tr></thead><tbody>`;
-  for (const r of rs.slice().sort((a, c) => c.util - a.util)) h += `<tr><td><code>${esc(r.test.split("/")[1])}</code></td><td>${esc(r.case)}</td><td class="num">${r.n}</td><td class="num" data-v="${r.max_abs}">${sci(r.max_abs)}</td><td class="num" data-v="${r.max_rel}">${sci(r.max_rel)}</td><td>${esc(tolText(r))}</td><td data-v="${r.util}">${utilBar(r.util)}</td><td class="num" data-v="${r.util ? 1 / r.util : 1e99}">${fmtMargin(r.util)}</td></tr>`;
+  let h = `<div class="tw"><table>${cap(t2("Erro medido", "Measured error"))}<thead><tr><th>${t2("Teste", "Test")}</th><th>${t2("Caso", "Case")}</th><th>n</th><th>${t2("Erro abs max", "Max abs error")}</th><th>${t2("Erro rel max", "Max rel error")}</th><th>${t2("Tolerancia", "Tolerance")}</th><th>${t2("Fonte da tolerancia", "Source of the tolerance")}</th><th>${t2("Utilizacao", "Utilization")}</th><th>${t2("Margem", "Margin")}</th></tr></thead><tbody>`;
+  for (const r of rs.slice().sort((a, c) => c.util - a.util)) h += `<tr><td><code>${esc(r.test.split("/")[1])}</code></td><td>${esc(r.case)}</td><td class="num">${r.n}</td><td class="num" data-v="${r.max_abs}">${sci(r.max_abs)}</td><td class="num" data-v="${r.max_rel}">${sci(r.max_rel)}</td><td>${esc(tolText(r))}</td><td lang="en">${esc(r.source || "-")}</td><td data-v="${r.util}">${utilBar(r.util)}</td><td class="num" data-v="${r.util ? 1 / r.util : 1e99}">${fmtMargin(r.util)}</td></tr>`;
   return h + "</tbody></table></div>";
 }
 function vBlock(f) {

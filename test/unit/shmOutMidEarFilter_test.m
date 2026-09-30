@@ -31,7 +31,7 @@ band = f >= 20 & f <= 20000;
 for field = {'free-frontal', 1:8; 'diffuse', 3:8}'
     H = il_dB(shmOutMidEarFilter(x, field{1}), band);
     Href = il_dB(sosfilt(sos(field{2}, :), x), band);
-    sqat_report_record('shm', sprintf('outer and middle ear filter, %s, against Table 1 (dB)', field{1}), H, Href, 0.001);
+    sqat_report_record('shm', sprintf('outer and middle ear filter, %s, against Table 1 (dB)', field{1}), H, Href, 0.001, 'set by us: Table 1 prints 6 decimals (measured 2.4e-4 dB)');
     tc.verifyEqual(H, Href, 'AbsTol', 0.001, field{1});
 end
 end

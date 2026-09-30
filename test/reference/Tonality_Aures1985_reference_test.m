@@ -41,7 +41,7 @@ for k = 1:2
     tc.verifyNumElements(idx, size(c, 1), sprintf('Test %d: number of components', k));
     [d, m] = min(abs(c(:, 1) - fref'), [], 1);
     tc.verifyLessThan(d, df, sprintf('Test %d: frequency within one sample', k));
-    sqat_report_record('tonality_aures1985', sprintf('Test %d, levels of the components (Table 6.%d)', k, k+1), L(idx), c(m, 2), 0.01);
+    sqat_report_record('tonality_aures1985', sprintf('Test %d, levels of the components (Table 6.%d)', k, k+1), L(idx), c(m, 2), 0.01, 'validation script: levels printed with 2 decimals');
     tc.verifyEqual(L(idx), c(m, 2), 'AbsTol', 0.01, sprintf('Test %d: levels', k));
 end
 end
@@ -75,8 +75,36 @@ for k = 1:2
         end
     end
     tc.assertNotEmpty(got, sprintf('Test %d: no masked component', k));
-    sqat_report_record('tonality_aures1985', sprintf('Test %d, level excess of the masked components (Table 6.%d)', k, k+1), got, want, 0.3);
+    sqat_report_record('tonality_aures1985', sprintf('Test %d, level excess of the masked components (Table 6.%d)', k, k+1), got, want, 0.3, 'validation script: 0.3 dB');
     tc.verifyEqual(got, want, 'AbsTol', 0.3, sprintf('Test %d: level excess', k));
+end
+end
+
+function test_the_scripts_of_validation_pass_their_checks(tc)
+% Three scripts of validation/Tonality_Aures1985 that print CHECK ...
+% PASSED or FAILED, run as they are, print no FAILED. Their criteria:
+% extraction and level excess (the tables of Zhang and Shrestha, and the
+% noise term of Eq. 4 of their thesis within 0.1 dB); frequency weighting
+% (Eq. 9 of Aures 1985, Fig. 5); bandwidth weighting (Eq. 7, Fig. 6).
+% validation_bandwidth_dependence.m is left out: its README records that it
+% fails by a limit of the model (no term for the roll-off of a band, issue
+% 67), and it has failed since it was added.
+d = fullfile(fileparts(fileparts(fileparts(mfilename('fullpath')))), 'validation', 'Tonality_Aures1985');
+for f = {'validation_extraction_and_level_excess.m', 'validation_frequency_weighting.m', ...
+         'validation_bandwidth_weighting.m'}
+    S = sqat_run_script(fullfile(d, f{1}));
+    tc.assertEmpty(S.run_err, sprintf('%s stopped: %s', f{1}, S.run_err));
+    tc.verifyNotEmpty(strfind(S.run_out, 'PASSED'), [f{1} ': no check passed']);
+    tc.verifyEmpty(strfind(S.run_out, 'FAILED'), [f{1} ': ' strjoin(regexp(S.run_out, '[^\n]*FAILED[^\n]*', 'match'), ' | ')]);
+    if isfield(S, 'd3') && ~isempty(S.d3)
+        sqat_report_record('tonality_aures1985', 'noise term of the metric against Eq. 4 of Zhang and Shrestha (dB)', S.d3, zeros(size(S.d3)), 0.1, 'validation script: 0.1 dB');
+    end
+    if isfield(S, 'dev_tone')
+        sqat_report_record('tonality_aures1985', 'frequency weighting on sine tones against Eq. 9 of Aures (1985)', S.dev_tone, zeros(size(S.dev_tone)), S.tol_w2, 'validation script, after Aures (1985), Fig. 5');
+        sqat_report_record('tonality_aures1985', 'frequency weighting on 30 Hz bands against Eqs. 7 and 9', S.dev_30, zeros(size(S.dev_30)), S.tol_w1w2, 'validation script, after Aures (1985), Figs. 5 and 6');
+    elseif isfield(S, 'tol_w1') && isfield(S, 'dev')
+        sqat_report_record('tonality_aures1985', 'bandwidth weighting on 30 Hz bands against Eq. 7 of Aures (1985)', S.dev, zeros(size(S.dev)), S.tol_w1, 'validation script, after Aures (1985), Fig. 6');
+    end
 end
 end
 

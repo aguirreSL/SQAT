@@ -20,7 +20,7 @@ y = shmRoughLowPass(x, rs, 0.0625, 0.5);
 l = (1:50)';
 rise = 1 - exp(-l / (rs * 0.0625));
 fall = rise(end) * exp(-(1:100)' / (rs * 0.5));
-sqat_report_record('shm', 'roughness smoothing, rise and fall against Formula 109', y(2:end), [rise; fall], 1e-12);
+sqat_report_record('shm', 'roughness smoothing, rise and fall against Formula 109', y(2:end), [rise; fall], 1e-12, 'numerical: exact Formula 109 of ECMA-418-2');
 tc.verifyEqual(y(2:51), rise, 'AbsTol', 1e-12);
 tc.verifyEqual(y(52:end), fall, 'AbsTol', 1e-12);
 end

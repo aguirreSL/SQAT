@@ -24,11 +24,11 @@ for w = {'A', 'C', 'Z'}
     Lw = Do_SLM(x, fs, w{1}, 'f', dBFS);
     L.(w{1}) = Lw(settled);
     what = sprintf('%s-weighted level of a 60 dB SPL tone at 1 kHz (Table 3)', w{1});
-    sqat_report_record('slm', what, L.(w{1}), 60 * ones(size(L.(w{1}))), 0.7);
+    sqat_report_record('slm', what, L.(w{1}), 60 * ones(size(L.(w{1}))), 0.7, 'IEC 61672-1:2013, Table 3, class 1 limit at 1 kHz');
     tc.verifyEqual(L.(w{1}), 60 * ones(size(L.(w{1}))), 'AbsTol', 0.7, what);
 end
-sqat_report_record('slm', 'C against A at 1 kHz (5.5.9)', L.C, L.A, 0.2);
-sqat_report_record('slm', 'Z against A at 1 kHz (5.5.9)', L.Z, L.A, 0.2);
+sqat_report_record('slm', 'C against A at 1 kHz (5.5.9)', L.C, L.A, 0.2, 'IEC 61672-1:2013, 5.5.9');
+sqat_report_record('slm', 'Z against A at 1 kHz (5.5.9)', L.Z, L.A, 0.2, 'IEC 61672-1:2013, 5.5.9');
 tc.verifyEqual(L.C, L.A, 'AbsTol', 0.2, 'C against A at 1 kHz');
 tc.verifyEqual(L.Z, L.A, 'AbsTol', 0.2, 'Z against A at 1 kHz');
 end

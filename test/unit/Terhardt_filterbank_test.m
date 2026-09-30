@@ -31,8 +31,8 @@ top = find(abs(e - 70) < 1e-9);
 tc.assertNotEmpty(top, 'no channel at the level of the tone');
 low = diff(e(top(1)-4:top(1)));
 high = diff(e(top(end):top(end)+4));
-sqat_report_record('terhardt', 'lower slope per half Bark, Eq. 4a', low, 13.5 * ones(1, 4), 1e-9);
-sqat_report_record('terhardt', 'upper slope per half Bark, Eq. 4b', high, -(24 + 230/1000 - 0.2*70)/2 * ones(1, 4), 1e-9);
+sqat_report_record('terhardt', 'lower slope per half Bark, Eq. 4a', low, 13.5 * ones(1, 4), 1e-9, 'numerical: exact Eq. 4a of Terhardt (1979)');
+sqat_report_record('terhardt', 'upper slope per half Bark, Eq. 4b', high, -(24 + 230/1000 - 0.2*70)/2 * ones(1, 4), 1e-9, 'numerical: exact Eq. 4b of Terhardt (1979)');
 tc.verifyEqual(low, 13.5 * ones(1, 4), 'AbsTol', 1e-9);
 tc.verifyEqual(high, -(24 + 230/1000 - 0.2*70)/2 * ones(1, 4), 'AbsTol', 1e-9);
 end

@@ -18,7 +18,7 @@ function test_the_formula_follows_the_critical_band_table_of_zwicker(tc)
 % (z + 0.5) are an interpolation of the table, where the formula reaches
 % 0.24 Bark, and are left out.
 [~, T] = Get_Bark(4, [], []);
-sqat_report_record('bark', 'hz2bark_local at the band edges of the table of Zwicker', hz2bark_local(T(:,2)), T(:,1), 0.2);
+sqat_report_record('bark', 'hz2bark_local at the band edges of the table of Zwicker', hz2bark_local(T(:,2)), T(:,1), 0.2, 'Zwicker and Terhardt (1980): better than 0.2 Bark');
 tc.verifyEqual(hz2bark_local(T(:,2)), T(:,1), 'AbsTol', 0.2);
 end
 
@@ -35,7 +35,7 @@ function test_bark2hz_inverts_hz2bark(tc)
 g = 1000 * 2.^((-20:12)/3);
 tc.verifyEqual(bark2hz_local(hz2bark_local(g)), g, 'RelTol', 1e-12);
 z = linspace(hz2bark_local(g(1)), hz2bark_local(g(end)), 2000);
-sqat_report_record('bark', 'round trip z -> bark2hz_local -> hz2bark_local', hz2bark_local(bark2hz_local(z)), z, 0.13);
+sqat_report_record('bark', 'round trip z -> bark2hz_local -> hz2bark_local', hz2bark_local(bark2hz_local(z)), z, 0.13, 'set by us, twice the measured error');
 tc.verifyEqual(hz2bark_local(bark2hz_local(z)), z, 'AbsTol', 0.13);
 end
 

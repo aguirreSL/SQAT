@@ -15,7 +15,7 @@ function test_a_44_1_kHz_signal_goes_to_48_kHz(tc)
 [y, rate] = shmResample(sin(2*pi*1000*(0:44099)'/44100), 44100);
 tc.verifyEqual(rate, 48000);
 tc.verifySize(y, [48000 1]);
-sqat_report_record('shm', 'rms of a resampled sinusoid', rms(y(1000:end-1000)), 1/sqrt(2), 1e-3/sqrt(2));
+sqat_report_record('shm', 'rms of a resampled sinusoid', rms(y(1000:end-1000)), 1/sqrt(2), 1e-3/sqrt(2), 'set by us (measured 0.05 %)');
 tc.verifyEqual(rms(y(1000:end-1000)), 1/sqrt(2), 'RelTol', 1e-3);
 end
 

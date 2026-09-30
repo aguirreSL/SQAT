@@ -12,7 +12,7 @@ function test_the_reference_signal_is_1_asper(tc)
 % Reference signal of the help: a 1 kHz tone of 60 dB SPL, 100 % modulated
 % at 70 Hz, yields 1 asper (R90). Tolerance 0.0025, as the loudness.
 [~, O] = evalc('Roughness_ECMA418_2(il_am(60, 70), 48000, ''free-frontal'', 0.304, false)');
-sqat_report_record('roughness_ecma418_2', 'roughness of the reference signal (1 asper)', O.roughness90Pc, 1, 0.0025);
+sqat_report_record('roughness_ecma418_2', 'roughness of the reference signal (1 asper)', O.roughness90Pc, 1, 0.0025, 'set by us, as the 0.25 % of ECMA-418-2 footnote 9');
 tc.verifyEqual(O.roughness90Pc, 1, 'AbsTol', 0.0025);
 end
 

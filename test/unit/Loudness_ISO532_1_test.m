@@ -13,7 +13,7 @@ function test_40_dB_at_1_kHz_is_1_sone(tc)
 % (stationary method, free field). Tolerance: the criterion of ISO 532-1 for
 % the total loudness of its test signals, 5 % or 0.1 sone, whichever is larger.
 [~, O] = evalc('Loudness_ISO532_1(il_tone(40, 1000), 48000, 0, 1, 0.5, false)');
-sqat_report_record('loudness_iso532_1', 'loudness of 1 kHz, 40 dB (1 sone)', O.Loudness, 1, 0.1);
+sqat_report_record('loudness_iso532_1', 'loudness of 1 kHz, 40 dB (1 sone)', O.Loudness, 1, 0.1, 'ISO 532-1:2017, 5 % or 0.1 sone');
 tc.verifyEqual(O.Loudness, 1, 'AbsTol', 0.1);
 end
 
@@ -30,7 +30,7 @@ for k = 1:numel(L)
 end
 want = 2.^((L - 40)/10);
 tol = max(0.05 * want, 0.1);
-sqat_report_record('loudness_iso532_1', 'loudness of 1 kHz tones, 40 to 80 dB, over the ISO tolerance', (N - want)./tol, zeros(size(L)), 1);
+sqat_report_record('loudness_iso532_1', 'loudness of 1 kHz tones, 40 to 80 dB, over the ISO tolerance', (N - want)./tol, zeros(size(L)), 1, 'ISO 532-1:2017, 5 % or 0.1 sone');
 tc.verifyLessThanOrEqual(abs(N - want), tol);
 end
 

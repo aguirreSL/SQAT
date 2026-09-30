@@ -12,7 +12,7 @@ function test_the_reference_signal_is_1_asper(tc)
 % Reference signal of the help: a 1 kHz tone of 60 dB SPL, 100 % modulated
 % at 70 Hz, yields 1 asper. Tolerance 0.01 asper, set by us.
 [~, O] = evalc('Roughness_Daniel1997(il_am(60, 70), 48000, 0.5, false)');
-sqat_report_record('roughness_daniel1997', 'roughness of the reference signal (1 asper)', O.Rmean, 1, 0.01);
+sqat_report_record('roughness_daniel1997', 'roughness of the reference signal (1 asper)', O.Rmean, 1, 0.01, 'set by us; no published tolerance (measured 0.0005)');
 tc.verifyEqual(O.Rmean, 1, 'AbsTol', 0.01);
 end
 

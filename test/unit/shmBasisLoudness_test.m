@@ -31,7 +31,7 @@ for k = 1:numel(levels)
     tc.verifyEqual(rmsb, p, 'RelTol', 1e-12, 'rectified rms, Formula 22');
     want(k) = 0.0211964 * (p/2e-5) * prod((1 + (p./pt).^1.5).^(diff(v)/1.5)) - LTQ;
 end
-sqat_report_record('shm', 'basis loudness at 30, 60, 90 dB against Formulas 23 and 25 (rel.)', (got + LTQ)./(want + LTQ), ones(1, 3), 0.0025);
+sqat_report_record('shm', 'basis loudness at 30, 60, 90 dB against Formulas 23 and 25 (rel.)', (got + LTQ)./(want + LTQ), ones(1, 3), 0.0025, 'ECMA-418-2:2025, footnote 9 (0.25 % on cN)');
 tc.verifyEqual((got + LTQ)./(want + LTQ), ones(1, 3), 'AbsTol', 0.0025);
 end
 

@@ -19,7 +19,7 @@ q = [1.2822; 0.2471 + 0.0129 * 3.4253^2];
 f = [fmax/4 fmax/2 fmax 2*fmax 4*fmax];
 want = 1 ./ (1 + ((f/fmax - fmax./f) * q(1)).^2).^q(2);
 got = shmRoughWeight(f, fmax, q);
-sqat_report_record('shm', 'roughness weighting at 1 kHz against Formula 85', got, want, 1e-12);
+sqat_report_record('shm', 'roughness weighting at 1 kHz against Formula 85', got, want, 1e-12, 'numerical: exact Formula 85 of ECMA-418-2');
 tc.verifyEqual(got, want, 'AbsTol', 1e-12);
 tc.verifyEqual(got(3), 1);
 end

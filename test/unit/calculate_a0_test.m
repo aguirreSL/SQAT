@@ -18,7 +18,7 @@ function test_fastl2007_follows_the_curve_of_the_book(tc)
 [f, d] = il_a0_dB('fastl2007');
 pick = [1000 3400 5300 7700 12000 15500];
 want = [0 7.38 0 -2.59 -11.3 -40];
-sqat_report_record('a0', 'fastl2007 at the points of Fig. 8.18', d(ismember(f, pick)), want, 1e-9);
+sqat_report_record('a0', 'fastl2007 at the points of Fig. 8.18', d(ismember(f, pick)), want, 1e-9, 'numerical: table points of Fastl and Zwicker (2007), Fig. 8.18');
 tc.verifyEqual(d(ismember(f, pick)), want, 'AbsTol', 1e-9);
 end
 

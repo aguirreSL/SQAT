@@ -21,7 +21,7 @@ for k = 1:numel(levels)
     L(14) = levels(k);                                   % band 14 is 1 kHz
     [~, PNL(k)] = get_PNL(L);
 end
-sqat_report_record('epnl', 'PNL of a single 1 kHz band, 40 to 90 dB', PNL, levels, 1e-6);
+sqat_report_record('epnl', 'PNL of a single 1 kHz band, 40 to 90 dB', PNL, levels, 1e-6, 'numerical: formulas of 14 CFR Part 36, A36.4');
 tc.verifyEqual(PNL, levels, 'AbsTol', 1e-6);
 end
 

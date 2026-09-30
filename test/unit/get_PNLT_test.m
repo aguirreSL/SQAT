@@ -22,7 +22,7 @@ for k = 1:size(cases, 1)
     got(k) = il_correction(tc, cases(k, 1), cases(k, 2));
 end
 sqat_report_record('epnl', 'tone correction of Table A36-2 (5 cases)', got, cases(:, 3)', 1e-9);
-tc.verifyEqual(got, cases(:, 3)', 'AbsTol', 1e-9);
+tc.verifyEqual(got, cases(:, 3)', 'AbsTol', 1e-9, 'numerical: Table A36-2 of 14 CFR Part 36');
 end
 
 function test_a_smooth_spectrum_gets_no_correction(tc)

@@ -19,7 +19,7 @@ d = exp(-1 / (rs * (1/32) * (6/7)));
 n = (0:199)';
 h = (1 - d)^3 / (d + d^2) * n.^2 .* d.^n;
 got = shmNoiseRedLowPass([1; zeros(199, 1)], rs);
-sqat_report_record('shm', 'noise reduction low-pass, impulse response against Formula 11', got, h, 1e-12);
+sqat_report_record('shm', 'noise reduction low-pass, impulse response against Formula 11', got, h, 1e-12, 'numerical: exact Formula 11 of ECMA-418-2');
 tc.verifyEqual(got, h, 'AbsTol', 1e-12);
 end
 

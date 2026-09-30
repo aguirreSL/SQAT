@@ -12,7 +12,7 @@ function test_40_dB_at_1_kHz_is_1_tu_HMS(tc)
 % Reference signal of the help: a 1 kHz tone of 40 dB SPL yields 1 tu_HMS.
 % Tolerance 0.0025, as the 0.25 % that footnote 9 allows the loudness.
 [~, O] = evalc('Tonality_ECMA418_2(il_tone(40, 1000), 48000, ''free-frontal'', 0.304, false)');
-sqat_report_record('tonality_ecma418_2', 'tonality of 1 kHz, 40 dB (1 tu_HMS)', O.tonalityAvg, 1, 0.0025);
+sqat_report_record('tonality_ecma418_2', 'tonality of 1 kHz, 40 dB (1 tu_HMS)', O.tonalityAvg, 1, 0.0025, 'set by us, as the 0.25 % of ECMA-418-2 footnote 9');
 tc.verifyEqual(O.tonalityAvg, 1, 'AbsTol', 0.0025);
 end
 
