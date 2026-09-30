@@ -10,6 +10,7 @@ exists, a tolerance set just above the measured error and marked as ours.
 |---|---|---:|
 | `unit/` | one function at a time: the helpers in `utilities/`, `sound_level_meter/` and `EPNL_FAR_Part36/helper/`, and every metric on the reference signal of its help, one property from the literature and silence | about 50 s |
 | `reference/` | a metric against the published data of its validation, with the criteria of the source | about 15 s |
+| `gui/` | the interface in `gui/`: its functions, the calls of the metrics and the windows (see `gui/README.md`) | about 5 min |
 | `report/` | no tests: the recorder and the page of the report | |
 
 ## Running
@@ -51,7 +52,8 @@ the folder. Without them the tests are reported as incomplete.
 ## Continuous integration
 
 `.github/workflows/tests.yml` runs every night at 03:00 UTC and on demand:
-it merges the main of ggrecow/SQAT, downloads the ISO 532-1 signals, runs
+it merges the main of ggrecow/SQAT and the GUI branch of this fork
+(feat/sqat-gui), downloads the ISO 532-1 signals, runs
 the whole suite on MATLAB R2026a and publishes the report on
 https://aguirresl.github.io/SQAT/. When every test passes, the merge is
 pushed, so this main follows the upstream one with the tests on top.

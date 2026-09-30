@@ -1,4 +1,5 @@
-# Nightly tests of this fork: brings in the main of ggrecow/SQAT, runs test/
+# Nightly tests of this fork: brings in the main of ggrecow/SQAT and the GUI
+# (feat/sqat-gui of this fork), runs test/
 # (sqat_report_build) and publishes the report of the run on GitHub Pages. When every test passes,
 # the merge is pushed, so this main follows the upstream one with the tests on top.
 name: tests
@@ -24,11 +25,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Merge the main of ggrecow/SQAT
+      - name: Merge the main of ggrecow/SQAT and the GUI branch of this fork
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch https://github.com/ggrecow/SQAT.git main
+          git merge --no-edit FETCH_HEAD
+          git fetch origin feat/sqat-gui
           git merge --no-edit FETCH_HEAD
 
       - name: Download the test signals of ISO 532-1 (Annex B and C)
