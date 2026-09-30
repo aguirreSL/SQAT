@@ -19,8 +19,9 @@ file = getenv('SQAT_REPORT_FILE');
 if isempty(file)
     return
 end
-err = abs(got(:) - want(:));
-big = abs(want(:)) >= 1e-6 * max(abs(want(:)));    % relative error only where the reference is not near zero
+want = want(:);
+err = abs(got(:) - want);
+big = abs(want) >= 1e-6 * max(abs(want));          % relative error only where the reference is not near zero
 rel = err(big) ./ abs(want(big));
 [suite, test] = il_caller();
 r = struct('suite', suite, 'test', test, 'metric', metric, 'case', case_name, ...
