@@ -35,7 +35,8 @@ jobs:
       - name: Run the tests and build the report
         uses: matlab-actions/run-command@v2
         with:
-          command: addpath('test/report'); assert(sqat_report_build, 'some tests failed: see the report')
+          command: |
+            addpath('test/report'); assert(sqat_report_build, 'some tests failed: see the report')
 
       - uses: actions/upload-artifact@v4
         if: always()
