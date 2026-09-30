@@ -31,6 +31,13 @@ jobs:
           git fetch https://github.com/ggrecow/SQAT.git main
           git merge --no-edit FETCH_HEAD
 
+      - name: Download the test signals of ISO 532-1 (Annex B and C)
+        run: |
+          mkdir -p "test/reference/data/ISO 532-1 - Program etc"
+          curl -sSfL -o /tmp/iso532-1.zip "https://standards.iso.org/iso/532/-1/ed-1/en/ISO%20532-1%20-%20Program%20etc.zip"
+          unzip -q /tmp/iso532-1.zip -d "test/reference/data/ISO 532-1 - Program etc"
+          ls "test/reference/data/ISO 532-1 - Program etc"
+
       - uses: matlab-actions/setup-matlab@v2
         with:
           release: R2026a
