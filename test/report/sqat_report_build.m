@@ -33,9 +33,10 @@ cleanup = onCleanup(@() setenv('SQAT_REPORT_FILE', ''));
 addpath(here);
 suite = matlab.unittest.TestSuite.fromFolder(target, 'IncludingSubfolders', true);
 suite = suite(~startsWith({suite.BaseFolder}, here));   % the report folder holds no tests
-runner = matlab.unittest.TestRunner.withTextOutput;
+runner = matlab.unittest.TestRunner.withTextOutput('OutputDetail', matlab.unittest.Verbosity.Detailed);
 runner.addPlugin(matlab.unittest.plugins.DiagnosticsRecordingPlugin);   % the failure output of each test
 log = evalc('results = runner.run(suite);');
+log = [log, il_summary(results, fileread(records))];
 
 tests = cell(1, numel(results));
 docs = containers.Map();
@@ -105,6 +106,26 @@ for k = 1:numel(lines)
     end
     d.(tok{1}) = strjoin(txt, ' ');
 end
+end
+
+function txt = il_summary(results, records)
+% the end of the raw log: one line per test with its result and time, then
+% one line per recorded comparison with its error, tolerance and utilization
+status = repmat({'PASS'}, 1, numel(results));
+status([results.Incomplete]) = {'INCOMPLETE'};
+status([results.Failed]) = {'FAIL'};
+lines = [{'', 'Results', '======='}, ...
+    arrayfun(@(k) sprintf('%-10s %8.2f s  %s', status{k}, results(k).Duration, results(k).Name), ...
+    1:numel(results), 'UniformOutput', false)];
+recs = splitlines(strtrim(records));
+recs = recs(~cellfun(@isempty, recs));
+lines = [lines, {'', 'Comparisons with a reference', '============================', ...
+    sprintf('%-11s %-11s %-11s %s', 'utilization', 'max error', 'tolerance', 'case (test)')}];
+for k = 1:numel(recs)
+    r = jsondecode(recs{k});
+    lines{end+1} = sprintf('%-11.4g %-11.4g %-11.4g %s (%s)', r.util, r.max_abs, r.tol_abs, r.case, r.test); %#ok<AGROW>
+end
+txt = sprintf('%s\n', lines{:});
 end
 
 function txt = il_failure(r)
