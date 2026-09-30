@@ -33,10 +33,21 @@ cleanup = onCleanup(@() setenv('SQAT_REPORT_FILE', ''));
 addpath(here);
 suite = matlab.unittest.TestSuite.fromFolder(target, 'IncludingSubfolders', true);
 suite = suite(~startsWith({suite.BaseFolder}, here));   % the report folder holds no tests
-runner = matlab.unittest.TestRunner.withTextOutput('OutputDetail', matlab.unittest.Verbosity.Detailed);
-runner.addPlugin(matlab.unittest.plugins.DiagnosticsRecordingPlugin);   % the failure output of each test
-log = evalc('results = runner.run(suite);');
-log = [log, il_summary(results, fileread(records))];
+% the detailed output goes to the screen as the tests run (the CI log shows
+% where a run stops) and to a file, for the raw log of the report
+logfile = fullfile(out, 'runner.log');
+if isfile(logfile)
+    delete(logfile);
+end
+import matlab.unittest.plugins.*
+runner = matlab.unittest.TestRunner.withNoPlugins;
+runner.addPlugin(TestRunProgressPlugin.withVerbosity(matlab.unittest.Verbosity.Detailed));
+runner.addPlugin(TestRunProgressPlugin.withVerbosity(matlab.unittest.Verbosity.Detailed, ToFile(logfile)));
+runner.addPlugin(DiagnosticsValidationPlugin);
+runner.addPlugin(FailureDiagnosticsPlugin);
+runner.addPlugin(DiagnosticsRecordingPlugin);   % the failure output of each test
+results = runner.run(suite);
+log = [fileread(logfile), il_summary(results, fileread(records))];
 
 tests = cell(1, numel(results));
 docs = containers.Map();

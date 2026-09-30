@@ -48,6 +48,7 @@ jobs:
           cache: true                  # MATLAB kept between runs
 
       - name: Run the tests and build the report
+        timeout-minutes: 30
         uses: matlab-actions/run-command@v2
         with:
           command: |
