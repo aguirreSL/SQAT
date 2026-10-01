@@ -32,8 +32,8 @@ for k = 1:size(cases, 1)
     end
     r = sqrt(mean((got - ref).^2));
     name = fileparts(cases{k, 1});
-    sqat_report_record('fluctuation_strength', ['RMSE against the reference, ' name ' (vacil)'], r, 0, 1.02 * cases{k, 2}, ...
-        'pinned at the RMSE of 30.09.2026 (PR 62 rule: agreement can only improve)');
+    sqat_report_record('fluctuation_strength', ['rise of the RMSE over its pinned value, ' name ' (vacil)'], max(r - cases{k, 2}, 0), 0, ...
+        0.02 * cases{k, 2}, 'pinned at the RMSE of 30.09.2026, 2 % for the platform (PR 62 rule)');
     inside = nnz(abs(got - ref) <= 0.1 * ref);
     sqat_report_record('fluctuation_strength', sprintf('points outside the 10 %% JND, %s (reported, %d of %d inside)', name, inside, numel(ref)), ...
         numel(ref) - inside, 0, numel(ref), 'report only: data of listening tests, not a limit of the model (PR 62)');

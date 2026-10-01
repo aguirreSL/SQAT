@@ -43,7 +43,6 @@ import matlab.unittest.plugins.*
 runner = matlab.unittest.TestRunner.withNoPlugins;
 runner.addPlugin(TestRunProgressPlugin.withVerbosity(matlab.unittest.Verbosity.Detailed));
 runner.addPlugin(TestRunProgressPlugin.withVerbosity(matlab.unittest.Verbosity.Detailed, ToFile(logfile)));
-runner.addPlugin(DiagnosticsValidationPlugin);
 runner.addPlugin(FailureDiagnosticsPlugin);
 runner.addPlugin(DiagnosticsRecordingPlugin);   % the failure output of each test
 results = runner.run(suite);

@@ -40,8 +40,8 @@ for k = 1:7
     inside = inside + nnz(abs(q - ref) <= band(ref));
     n = n + numel(ref);
 end
-sqat_report_record(metric, 'RMSE against the jury of Daniel and Weber (1997), 7 carriers (asper)', r, zeros(1, 7), ...
-    1.02 * max(pinned), 'pinned at the RMSE of 30.09.2026 (PR 60 rule: agreement can only improve)');
+sqat_report_record(metric, 'rise of the RMSE against the jury of Daniel and Weber (1997) over its pinned value, 7 carriers (asper)', ...
+    max(r - pinned, 0), zeros(1, 7), 0.02 * max(pinned), 'pinned at the RMSE of 30.09.2026, 2 % for the platform (PR 60 rule)');
 sqat_report_record(metric, sprintf('points outside %s (reported, %d of %d inside)', band_text, inside, n), n - inside, 0, n, ...
     'report only: jury data, not a limit of the model (PR 60)');
 tc.verifyLessThanOrEqual(r, 1.02 * pinned, 'RMSE of a carrier rose above its pinned value');
