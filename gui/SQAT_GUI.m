@@ -261,7 +261,7 @@ end
         if isequal(f, 0)
             return
         end
-        add_files(fullfile(p, cellstr(f)));
+        add_files(fullfile(p, cellstr(f)), true);   % chosen by hand: ask how to calibrate each
     end
 
     function on_signal_channel(k, c)
@@ -1536,7 +1536,12 @@ end
         end
     end
 
-    function add_files(paths)
+    function add_files(paths, ask)
+        % ask: open the calibration dialog for each new file (files chosen with
+        % Load files); files given to SQAT_GUI(files) keep the default of 94 dBFS
+        if nargin < 2
+            ask = false;
+        end
         n_before = numel(loaded);
         for k_file = 1:numel(paths)
             path = char(paths{k_file});
@@ -1564,7 +1569,7 @@ end
         end
         refresh_signals();
         write_log(sprintf('%d file(s) loaded.', numel(loaded)));
-        if strcmp(fig.Visible, 'on')             % one calibration dialog per new file, one after the other
+        if ask && strcmp(fig.Visible, 'on')      % one calibration dialog per new file, one after the other
             for k_new = n_before+1:numel(loaded)
                 on_signal_cal(k_new);
             end
@@ -2418,8 +2423,9 @@ end
         if enhanced
             spec_title();
         else
-            title(ax_spec, sprintf('Spectrogram (%s window, %d points, %.0f %% overlap)', ...
-                dd.Items{strcmp(dd.ItemsData, dd.Value)}, info.n_fft, info.overlap), 'Interpreter', 'none');
+            title(ax_spec, sprintf('Spectrogram (%s window, %d points, %.0f %% overlap, %cf %.1f Hz)', ...
+                dd.Items{strcmp(dd.ItemsData, dd.Value)}, info.n_fft, info.overlap, 916, wave_fs / info.n_fft), ...
+                'Interpreter', 'none');                          % the frequency resolution, fs/N
         end
         xline(ax_spec, (max(play_start, 1) - 1) / wave_fs, 'Color', [1 1 1], 'LineWidth', 1.5, ...
             'Tag', 'playhead_spectrogram', 'PickableParts', 'none');
