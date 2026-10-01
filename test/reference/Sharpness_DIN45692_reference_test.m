@@ -14,6 +14,9 @@ tc.TestData.sounds = fullfile(root, 'sound_files', 'validation_SQAT_v1_0');
 end
 
 function test_narrowband_and_broadband_noises_within_5_percent(tc)
+% Runs the validation script of Sharpness_DIN45692 on the narrowband and
+% broadband noises of DIN 45692:2009, Tables A.2 and A.3, and checks every
+% value against its reference within 5 %.
 tc.assumeTrue(isfolder(fullfile(tc.TestData.sounds, 'Sharpness_DIN45692')), 'Zenodo sounds not found');
 S = sqat_run_script(fullfile(tc.TestData.v, 'Sharpness_DIN45692', 'validation_Sharpness_DIN45692_narrowband_and_broadband_signals.m'));
 tc.assertEmpty(S.run_err, S.run_err);

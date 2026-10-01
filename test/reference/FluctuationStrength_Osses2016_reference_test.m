@@ -16,6 +16,11 @@ tc.TestData.sounds = fullfile(root, 'sound_files', 'validation_SQAT_v1_0');
 end
 
 function test_rmse_against_the_references_does_not_grow(tc)
+% Runs the four validation scripts of FluctuationStrength_Osses2016 (AM and FM
+% tones, AM broadband noise, against the modulation frequency or the frequency
+% deviation) on the Zenodo sounds and checks that the RMSE against the
+% reference data stays within 2 % of its value pinned on 30.09.2026. The
+% points within the 10 % JND are reported only.
 tc.assumeTrue(isfolder(fullfile(tc.TestData.sounds, 'FluctuationStrength_Osses2016')), 'Zenodo sounds not found');
 d = fullfile(tc.TestData.v, 'FluctuationStrength_Osses2016');
 cases = {'1_AM_tones_fmod/run_validation_FS_fmod.m', 0.1252; '2_AM_BBN_fmod/run_validation_FS_AM_BBN_fmod.m', 0.2933; ...

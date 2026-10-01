@@ -15,6 +15,11 @@ tc.TestData.sounds = fullfile(root, 'sound_files', 'validation_SQAT_v1_0');
 end
 
 function test_rmse_against_the_jury_does_not_grow(tc)
+% Runs the validation script of Roughness_ECMA418_2 (AM tones, seven carriers
+% from 125 Hz to 8 kHz, against the modulation frequency) and checks that the
+% RMSE of each carrier against the jury data of Daniel and Weber (1997) stays
+% within 2 % of its value pinned on 30.09.2026. The points within 0.1 asper
+% are reported only.
 tc.assumeTrue(isfolder(fullfile(tc.TestData.sounds, 'Roughness_Daniel1997')), 'Zenodo sounds not found');
 S = sqat_run_script(fullfile(tc.TestData.v, 'Roughness_ECMA418_2', '1_AM_modulation_freq', 'run_validation_roughness_fmod.m'), true);
 tc.assertEmpty(S.run_err, S.run_err);

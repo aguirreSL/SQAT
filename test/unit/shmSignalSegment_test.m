@@ -30,5 +30,7 @@ tc.verifyEqual(B(:, 1), (11:18)');
 end
 
 function test_a_signal_shorter_than_a_block_is_an_error(tc)
+% A signal of 8 samples, cut into blocks of 8 samples with 50 % overlap, makes
+% shmSignalSegment stop with an error.
 tc.verifyError(@() shmSignalSegment((1:8)', 1, 8, 0.5, 1, false), ?MException);
 end

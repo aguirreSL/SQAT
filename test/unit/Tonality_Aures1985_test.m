@@ -26,6 +26,7 @@ tc.verifyLessThan(O.Kmean, 0.01);
 end
 
 function test_silence_has_no_tonality(tc)
+% Four seconds of silence give a mean tonality of 0.
 [~, O] = evalc('Tonality_Aures1985(zeros(4*48000, 1), 48000, 0, 0.5, false)');
 tc.verifyEqual(O.Kmean, 0);
 end

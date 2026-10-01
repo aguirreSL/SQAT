@@ -32,6 +32,7 @@ tc.verifyEqual(fm(i), 4);
 end
 
 function test_silence_has_no_fluctuation(tc)
+% Four seconds of silence give a mean fluctuation strength of 0.
 [~, O] = evalc('FluctuationStrength_Osses2016(zeros(4*48000, 1), 48000, 1, 0.5, false)');
 tc.verifyEqual(O.FSmean, 0);
 end

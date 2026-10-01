@@ -20,6 +20,8 @@ tc.verifyEqual(rms(y(1000:end-1000)), 1/sqrt(2), 'RelTol', 1e-3);
 end
 
 function test_48_kHz_passes_unchanged(tc)
+% A signal already at 48 kHz, the rate of the ECMA-418-2 hearing model, comes
+% back unchanged, with the rate 48000.
 x = randn(4800, 1);
 [y, rate] = shmResample(x, 48000);
 tc.verifyEqual([y; rate], [x; 48000]);

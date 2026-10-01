@@ -29,6 +29,7 @@ tc.verifyEqual(fm(i), 70);
 end
 
 function test_silence_has_no_roughness(tc)
+% Four seconds of silence give a mean roughness of 0.
 [~, O] = evalc('Roughness_Daniel1997(zeros(4*48000, 1), 48000, 0.5, false)');
 tc.verifyEqual(O.Rmean, 0);
 end

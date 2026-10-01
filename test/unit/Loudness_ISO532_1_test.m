@@ -35,6 +35,7 @@ tc.verifyLessThanOrEqual(abs(N - want), tol);
 end
 
 function test_silence_has_no_loudness(tc)
+% Four seconds of silence give a total loudness of 0.
 [~, O] = evalc('Loudness_ISO532_1(zeros(4*48000, 1), 48000, 0, 1, 0.5, false)');
 tc.verifyEqual(O.Loudness, 0);
 end

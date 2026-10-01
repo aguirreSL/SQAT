@@ -23,6 +23,7 @@ tc.verifyEqual(P, O.ScalarPA, 'RelTol', 1e-12);
 end
 
 function test_silence_has_no_annoyance(tc)
+% Four seconds of silence give a mean psychoacoustic annoyance of 0.
 [~, O] = evalc('PsychoacousticAnnoyance_More2010(zeros(4*48000, 1), 48000, 0, 0.5, false, false)');
 tc.verifyEqual(O.PAmean, 0);
 end

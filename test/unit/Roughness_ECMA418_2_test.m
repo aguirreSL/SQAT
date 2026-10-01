@@ -30,6 +30,7 @@ tc.verifyEqual(fm(i), 70);
 end
 
 function test_silence_has_no_roughness(tc)
+% Four seconds of silence give a 90th percentile roughness of 0.
 [~, O] = evalc('Roughness_ECMA418_2(zeros(4*48000, 1), 48000, ''free-frontal'', 0.304, false)');
 tc.verifyEqual(O.roughness90Pc, 0);
 end

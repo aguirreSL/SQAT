@@ -35,6 +35,10 @@ end
 end
 
 function test_stationary_signals_B2_and_B3(tc)
+% The five stationary test signals of ISO 532-1:2017 (B.2 from third-octave
+% levels, B.3 from the sound files): total loudness within 5 % or 0.1 sone
+% of the reference, and specific loudness inside the envelope of the
+% standard.
 tc.assumeTrue(tc.TestData.ok, 'ISO 532-1 sound files not found (SQAT_ISO532_1_DIR)');
 N_ref = [83.296 14.655 4.019 1.549 10.498];    % total loudness of signals 1 to 5 (sone)
 names = {'', 'Annex B.3/Test signal 2 (250 Hz 80 dB).wav', 'Annex B.3/Test signal 3 (1 kHz 60 dB).wav', ...
@@ -57,6 +61,10 @@ end
 end
 
 function test_time_varying_signals_B4_and_B5(tc)
+% The 20 time-varying test signals of ISO 532-1:2017 (B.4 synthetic, B.5
+% technical): loudness against time, and for B.4 the specific loudness
+% against time at the Bark given by the standard, inside the 5 % envelope,
+% with at most 1 % of the samples out to the 10 % envelope.
 tc.assumeTrue(tc.TestData.ok, 'ISO 532-1 sound files not found (SQAT_ISO532_1_DIR)');
 d = [dir(fullfile(tc.TestData.iso, 'Annex B.4', '*.wav')); dir(fullfile(tc.TestData.iso, 'Annex B.5', '*.wav'))];
 tc.assertNumElements(d, 20);

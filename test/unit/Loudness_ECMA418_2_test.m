@@ -17,6 +17,7 @@ tc.verifyEqual(O.loudnessPowAvg, 1, 'AbsTol', 0.0025);
 end
 
 function test_silence_has_no_loudness(tc)
+% Four seconds of silence give an overall loudness of 0.
 [~, O] = evalc('Loudness_ECMA418_2(zeros(4*48000, 1), 48000, ''free-frontal'', 0.304, false)');
 tc.verifyEqual(O.loudnessPowAvg, 0);
 end

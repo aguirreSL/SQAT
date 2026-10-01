@@ -17,6 +17,7 @@ tc.verifyEqual(O.tonalityAvg, 1, 'AbsTol', 0.0025);
 end
 
 function test_silence_has_no_tonality(tc)
+% Four seconds of silence give an average tonality of 0.
 [~, O] = evalc('Tonality_ECMA418_2(zeros(4*48000, 1), 48000, ''free-frontal'', 0.304, false)');
 tc.verifyEqual(O.tonalityAvg, 0);
 end
