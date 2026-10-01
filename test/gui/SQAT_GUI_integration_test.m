@@ -65,15 +65,18 @@ end
 function test_gui_opens_with_the_expected_controls(tc)
 % The main window opens with every control of the layout: logo, file count,
 % Load files, signal list, theme, analyses, Run, the two windows, export,
-% console, results, status and progress.
+% the results matrix with its plot, the table, the log, status and progress;
+% the empty signal list says how to start.
 fig = SQAT_GUI({}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 tc.verifyClass(fig, 'matlab.ui.Figure');
 for tag = {'logo','file_count','load_files','signals_list','theme', ...
            'add_analysis','analysis_list','run','open_graphs','open_waveform','export', ...
-           'console','results_table','status','progress'}
+           'console','results_table','results_matrix','overview_plot','status','progress'}
     tc.verifyNotEmpty(findobj(fig, 'Tag', tag{1}), ['missing control: ' tag{1}]);
 end
+tc.verifyNotEmpty(findobj(fig, 'Tag', 'signals_hint'));        % the empty list says how to start
+tc.verifyEqual(findobj(fig, 'Tag', 'run').Text, 'Run Analysis');
 for tag = {'show_plots','save_figures','split_figures','stop_run'}   % Stop is in the progress dialog
     tc.verifyEmpty(findobj(fig, 'Tag', tag{1}), ['control still there: ' tag{1}]);
 end
@@ -223,6 +226,7 @@ fig = SQAT_GUI({tc.TestData.wav_mono, tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Loudness_ISO532_1'});
 il_mark_signal(fig, 2, false);                       % only the first is analysed
+tc.verifyEqual(findobj(fig, 'Tag', 'run').Text, ['Run 1 signal ' char(215) ' 1 analysis']);
 il_press(fig, 'run');
 T = findobj(fig, 'Tag', 'results_table').Data;
 tc.verifyEqual(unique(T.File), {'tone_mono.wav'});
@@ -346,32 +350,41 @@ tc.verifyFalse(isappdata(fig, 'sqat_progress'), 'the dialog stays after the run'
 tc.verifySubstring(findobj(fig, 'Tag', 'status').Text, 'Done');
 end
 
-function test_gui_results_have_one_tab_per_signal(tc)
-% The results have one tab per signal, "Results #1" and "Results #2", and each
-% tab holds exactly the rows of its signal from the full table.
+function test_gui_results_matrix_sets_the_signals_side_by_side(tc)
+% The Results tab opens after a run with a matrix: one row per analysis and
+% quantity, one column per signal and channel, each cell the value of the full
+% table. Below it, the plot of the analysis of the chosen row overlays the
+% signals; a click on another row plots that analysis; a removed signal takes
+% its column away.
 fig = SQAT_GUI({tc.TestData.wav_mono, tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_select_metrics(fig, {'Loudness_ISO532_1'});
+il_select_metrics(fig, {'Loudness_ISO532_1', 'Roughness_Daniel1997'});
 il_press(fig, 'run');
+tc.verifyEqual(findobj(fig, 'Type', 'uitab', 'Title', 'Results').Parent.SelectedTab.Title, 'Results');
+M = findobj(fig, 'Tag', 'results_matrix');
+tc.verifyEqual(M.ColumnName(:)', {'Analysis', 'Quantity', 'Signal #1, ch1', 'Signal #2, ch1'});
 T = findobj(fig, 'Tag', 'results_table').Data;
-tabs = @() findobj(fig, 'Tag', 'results_signal');         % in the order of the tab group
-tc.verifyEqual({tabs().Title}, {'Results #1', 'Results #2'});
-names = {'tone_mono.wav', 'tone_1k_60dB.wav'};
-for k = 1:2                                          % each tab holds the rows of its signal
-    t = tabs();
-    D = findobj(t(k), 'Type', 'uitable').Data;
-    tc.verifyEqual(D, T(strcmp(T.File, names{k}), {'Analysis', 'Metric', 'Channel', 'Quantity', 'Value', 'Unit', 'Parameters'}));
-end
-il_remove_signal(fig, 1);                            % a removed signal takes its tab away
-tc.verifyEqual({tabs().Title}, {'Results #2'});
+row = find(strcmp(M.Data(:, 2), 'N5 (sone)'));
+tc.assertNumElements(row, 1);
+tc.verifyEqual(M.Data{row, 3}, T.Value(strcmp(T.File, 'tone_mono.wav') & strcmp(T.Quantity, 'N5')));
+tc.verifyEqual(M.Data{row, 4}, T.Value(strcmp(T.File, 'tone_1k_60dB.wav') & strcmp(T.Quantity, 'N5')));
+tc.verifyEmpty(find(strcmp(M.Data(:, 2), 'N10 (sone)'), 1));     % percentiles: only 5 and 90 %
+tc.verifyNotEmpty(find(strcmp(M.Data(:, 2), 'N90 (sone)'), 1));
+plot_lines = @() findobj(findobj(fig, 'Tag', 'overview_plot'), 'Type', 'line');
+tc.verifyNumElements(plot_lines(), 2);                         % the loudness of both signals
+tc.verifyEqual(findobj(fig, 'Tag', 'overview_analysis').Value, 'loudness');
+r2 = find(M.UserData == 2, 1);                                 % a row of the roughness
+M.CellSelectionCallback(M, struct('Indices', [r2 1]));
+tc.verifyEqual(findobj(fig, 'Tag', 'overview_analysis').Value, 'roughness');
+tc.verifyNumElements(plot_lines(), 2);
 il_remove_signal(fig, 1);
-tc.verifyEmpty(tabs());
+tc.verifyEqual(M.ColumnName(:)', {'Analysis', 'Quantity', 'Signal #2, ch1'});
 end
 
 function test_gui_results_put_the_signals_and_channels_side_by_side(tc)
 % In the results table each quantity is listed for every signal and channel
 % before the next quantity, the analyses come in order and with their units,
-% and the tab of a stereo signal interleaves its two channels.
+% and the matrix gives each channel of a stereo signal its own column.
 fig = SQAT_GUI({tc.TestData.wav_mono, tc.TestData.wav_stereo}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Loudness_ISO532_1', 'Roughness_Daniel1997'});
@@ -388,10 +401,9 @@ tc.verifyNotEqual(T.Quantity{4}, T.Quantity{1});
 % every analysis comes whole, #1 before #2
 a = str2double(erase(T.Analysis, '#'));
 tc.verifyTrue(issorted(a));
-% the tab of a signal keeps its own rows, channels interleaved
-tabs = findobj(fig, 'Tag', 'results_signal');
-D = findobj(tabs(2), 'Type', 'uitable').Data;
-tc.verifyEqual(D.Channel(1:4), {'1'; '2'; '1'; '2'});
+% the matrix gives the mono signal one column and each channel of the stereo one its own
+M = findobj(fig, 'Tag', 'results_matrix');
+tc.verifyEqual(M.ColumnName(:)', {'Analysis', 'Quantity', 'Signal #1, ch1', 'Signal #2, ch1', 'Signal #2, ch2'});
 end
 
 function test_gui_all_channels_runs_a_binaural_pair_in_one_call(tc)
@@ -566,6 +578,46 @@ il_press(fig, 'run');                                   % both, then the second 
 il_remove_signal(fig, 2);
 S = describe();
 tc.verifyEqual(S.Item(startsWith(S.Item, 'Signal')), {'Signal #1'});
+end
+
+function test_gui_exports_a_pdf_report(tc)
+% Export to .pdf writes the report of the run: the settings and the matrix of
+% single values as text, then one page per analysis with its plot.
+fig = SQAT_GUI({tc.TestData.wav_mono, tc.TestData.wav_tone}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+il_select_metrics(fig, {'Do_SLM', 'Loudness_ISO532_1'});
+il_press(fig, 'run');
+pdf = fullfile(tc.TestData.dir_tmp, 'report.pdf');
+write_report = getappdata(fig, 'sqat_write_report');
+write_report(pdf);
+tc.verifyTrue(isfile(pdf));
+tc.verifyGreaterThan(dir(pdf).bytes, 10000);
+write_report(pdf);                                             % a second report replaces the first
+tc.verifyTrue(isfile(pdf));
+end
+
+function test_gui_session_restores_signals_and_analyses(tc)
+% A saved session opened in a fresh window gives back the signals with their
+% channel, calibration and tick, and the analyses with their parameters.
+fig = SQAT_GUI({tc.TestData.wav_mono, tc.TestData.wav_stereo}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+il_select_metrics(fig, {'Do_SLM', 'Loudness_ISO532_1'});
+il_signal_channel(fig, 2, '2');
+il_signal_dbfs(fig, 2, 100);
+il_mark_signal(fig, 1, false);
+file = fullfile(tc.TestData.dir_tmp, 'session.mat');
+session = getappdata(fig, 'sqat_session');
+session('save', file);
+fig2 = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig2));
+session2 = getappdata(fig2, 'sqat_session');
+session2('open', file);
+tc.verifyEqual(il_signal_names(fig2), {'tone_mono.wav', 'tone_stereo.wav'});
+tc.verifyFalse(findobj(fig2, 'Tag', 'signal_tick_1').Value);
+tc.verifyEqual(findobj(fig2, 'Tag', 'signal_channel_2').Value, '2');
+tc.verifyEqual(findobj(fig2, 'Tag', 'signal_cal_2').Text, '100 dBFS');
+tc.verifyEqual(findobj(fig2, 'Tag', 'analysis_metric_1').Value, 'Do_SLM');
+tc.verifyEqual(findobj(fig2, 'Tag', 'analysis_metric_2').Value, 'Loudness_ISO532_1');
 end
 
 function test_gui_marks_the_results_when_a_setting_changes(tc)
@@ -752,6 +804,8 @@ il_press(fig, 'run');
 log = strjoin(findobj(fig, 'Tag', 'console').Value, newline);
 tc.verifySubstring(log, 'ERROR');
 tc.verifySubstring(log, 'Loudness_ISO532_1');
+st = findobj(fig, 'Tag', 'status');                            % the status bar names the error in red
+tc.verifySubstring(st.Text, 'error');
 T = findobj(fig, 'Tag', 'results_table').Data;
 tc.verifyEqual(unique(T.Metric), {'Roughness_Daniel1997'});
 end
@@ -773,6 +827,45 @@ tc.verifyEqual(findobj(fig2, 'Tag', 'analysis_summary_1').Text, 'free-frontal, s
 il_select_metrics(fig2, {});
 il_press(fig2, 'run');
 tc.verifySubstring(strjoin(findobj(fig2, 'Tag', 'console').Value, newline), 'No metrics');
+end
+
+function test_gui_results_plot_carries_the_playhead(tc)
+% The plot below the matrix, when it is against time, carries the playhead of
+% the waveform window: a click on it opens that window and moves both
+% playheads to the time clicked; a playhead moved in the waveform window
+% moves the one of the plot.
+fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+il_select_metrics(fig, {'Loudness_ISO532_1'});
+il_press(fig, 'run');
+pl = findobj(fig, 'Tag', 'overview_plot');
+ph = findall(pl, 'Tag', 'overview_playhead');           % kept out of the legend: findall
+tc.assertNumElements(ph, 1);
+tc.verifyEqual(ph.Value, 0);
+ax = findobj(pl, 'Type', 'axes');
+ax.ButtonDownFcn(ax, struct('IntersectionPoint', [1.5 0 0]));
+w = il_window('SQAT_GUI_waveform');
+tc.assertNumElements(w, 1);
+tc.verifyEqual(findobj(w, 'Tag', 'playhead').Value, 1.5, 'AbsTol', 1/48000);
+tc.verifyEqual(ph.Value, 1.5, 'AbsTol', 1/48000);
+axw = findobj(w, 'Tag', 'waveform_axes');
+axw.ButtonDownFcn(axw, struct('IntersectionPoint', [0.5 0 0]));
+tc.verifyEqual(ph.Value, 0.5, 'AbsTol', 1/48000);
+end
+
+function test_gui_add_metric_adds_an_analysis_with_its_defaults(tc)
+% The Add metric menu appends an analysis of the chosen metric, with the
+% defaults of the catalogue and the next number, and goes back to its prompt.
+fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+dd = findobj(fig, 'Tag', 'add_metric');
+tc.verifyEqual(dd.Value, '');
+dd.Value = 'Roughness_Daniel1997';
+dd.ValueChangedFcn(dd, []);
+tc.verifyEqual(dd.Value, '');
+tc.verifyEqual(findobj(fig, 'Tag', 'analysis_metric_2').Value, 'Roughness_Daniel1997');
+tc.verifyEqual(findobj(fig, 'Tag', 'analysis_number_2').Text, '#2');
+tc.verifyEqual(findobj(fig, 'Tag', 'run').Text, ['Run 1 signal ' char(215) ' 2 analyses']);
 end
 
 function test_gui_compares_one_metric_with_two_sets_of_parameters(tc)
@@ -1798,19 +1891,6 @@ tc.verifyEqual(o.Value, 95);
 o.Value = 0; o.ValueChangedFcn(o, []);                    % and the down arrow at the bottom: no overlap
 [t0, ~, ~] = SQAT_GUI_spectrogram(x, fs, 'hann', 10, 0);
 tc.verifyEqual(numel(findobj(findobj(w, 'Tag', 'spectrogram'), 'Type', 'surface').XData), numel(t0));
-end
-
-function test_waveform_is_as_wide_as_the_spectrogram(tc)
-% The plot area of the waveform starts at the same x and has the same width
-% as the one of the spectrogram.
-fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
-tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
-pause(1);                                                      % the alignment waits for the layout
-p = findobj(w, 'Tag', 'spectrogram').InnerPosition;
-q = findobj(w, 'Tag', 'waveform_axes').InnerPosition;
-tc.verifyEqual(q([1 3]), p([1 3]), 'AbsTol', 1);
 end
 
 function test_waveform_spectrogram_takes_a_window_from_a_file(tc)

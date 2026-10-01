@@ -162,6 +162,9 @@ cmap = load('cmap_inferno.txt');                                    % the colour
 fig = uifigure('Name', 'SQAT: Sound Quality Analysis Toolbox', ...
     'Position', [40 30 1460 900], 'Visible', opts.Visible, 'Tag', 'SQAT_GUI', ...
     'CloseRequestFcn', @on_close, 'CreateFcn', '');   % skips a user default CreateFcn
+m_file = uimenu(fig, 'Text', 'File');
+uimenu(m_file, 'Text', 'Open session...', 'MenuSelectedFcn', @(~, ~) on_session('open'));
+uimenu(m_file, 'Text', 'Save session...', 'MenuSelectedFcn', @(~, ~) on_session('save'));
 main = uigridlayout(fig, [3 2]);
 main.RowHeight = {44, '1x', 30};
 main.ColumnWidth = {600, '1x'};                  % the lists get the room, the console the rest
@@ -187,18 +190,21 @@ ana_box.Padding = [6 6 6 6];
 sh = uigridlayout(sig_box, [1 3]);
 sh.Padding = [0 0 0 0];
 sh.ColumnWidth = {'1x', 100, 130};
-uilabel(sh, 'Text', 'SIGNALS', 'FontWeight', 'bold');
+uilabel(sh, 'Text', '1   SIGNALS', 'FontWeight', 'bold');
 lbl_files = uilabel(sh, 'Text', 'No files loaded', 'Tag', 'file_count', 'HorizontalAlignment', 'right');
 uibutton(sh, 'Text', 'Open WAV files...', 'Tag', 'load_files', 'ButtonPushedFcn', @on_load_files);
 signal_list = uigridlayout(sig_box, [1 6], 'Scrollable', 'on', 'Tag', 'signals_list');
 signal_list.ColumnWidth = {30, 22, '1x', 62, 96, 26};
 signal_list.Padding = [0 0 0 0];
 signal_list.RowSpacing = 4;
-ah = uigridlayout(ana_box, [1 2]);
+ah = uigridlayout(ana_box, [1 3]);
 ah.Padding = [0 0 0 0];
-ah.ColumnWidth = {'1x', 130};
-uilabel(ah, 'Text', 'ANALYSES (gear: parameters)', 'FontWeight', 'bold');
-uibutton(ah, 'Text', '+ Add', 'Tag', 'add_analysis', 'ButtonPushedFcn', @on_add_analysis, ...
+ah.ColumnWidth = {'1x', 190, 100};
+uilabel(ah, 'Text', '2   ANALYSES (gear: parameters)', 'FontWeight', 'bold');
+uidropdown(ah, 'Items', [{'+ Add metric...'}, {metrics.label}], 'ItemsData', [{''}, {metrics.id}], ...
+    'Value', '', 'Tag', 'add_metric', 'ValueChangedFcn', @on_add_metric, ...
+    'Tooltip', 'Adds an analysis of the chosen metric, with its default parameters');
+uibutton(ah, 'Text', 'Copy last', 'Tag', 'add_analysis', 'ButtonPushedFcn', @on_add_analysis, ...
     'Tooltip', 'Adds a copy of the last analysis, to compare the same metric with other parameters');
 analysis_list = uigridlayout(ana_box, [1 5], 'Scrollable', 'on', 'Tag', 'analysis_list');
 analysis_list.ColumnWidth = {30, 175, '1x', 36, 28};
@@ -216,7 +222,7 @@ act_panel = uipanel(right, 'Title', 'ACTIONS');
 ag = uigridlayout(act_panel, [1 5]);
 ag.ColumnWidth = {'1.4x', '1x', '1x', '1x', 36};
 ag.Padding = [6 4 6 4];
-uibutton(ag, 'Text', 'Run Analysis', 'Tag', 'run', 'FontWeight', 'bold', ...
+btn_run = uibutton(ag, 'Text', 'Run Analysis', 'Tag', 'run', 'FontWeight', 'bold', ...
     'BackgroundColor', green, 'FontColor', [1 1 1], 'ButtonPushedFcn', @on_run);
 uibutton(ag, 'Text', 'Open Graphs Window', 'Tag', 'open_graphs', 'ButtonPushedFcn', @on_open_graphs);
 uibutton(ag, 'Text', 'Waveform / Play', 'Tag', 'open_waveform', 'ButtonPushedFcn', @on_open_waveform);
@@ -224,12 +230,30 @@ uibutton(ag, 'Text', 'Export results...', 'Tag', 'export', 'ButtonPushedFcn', @o
 btn_theme = uibutton(ag, 'Text', char(9788), 'FontSize', 18, 'Tag', 'theme', ...
     'Tooltip', 'Light theme', 'ButtonPushedFcn', @on_theme);   % a sun, or a moon in the light theme
 
+% the results: the single values of the signals side by side, and below them
+% the plot of the analysis chosen in the matrix; the full table and the log
+% are one tab away
 tabs = uitabgroup(right);
-tab_console = uitab(tabs, 'Title', 'Console output');
+tab_results = uitab(tabs, 'Title', 'Results');
+ov = uigridlayout(tab_results, [3 1]);
+ov.RowHeight = {'1.5x', 26, '1x'};                     % the plot above the matrix, as Gil prefers
+ov.Padding = [4 4 4 4];
+ov_plot = uipanel(ov, 'BorderType', 'none', 'Tag', 'overview_plot');
+ob = uigridlayout(ov, [1 3]);
+ob.Padding = [0 0 0 0];
+ob.ColumnWidth = {40, 300, '1x'};
+uilabel(ob, 'Text', 'Plot:', 'HorizontalAlignment', 'right');
+dd_overview = uidropdown(ob, 'Items', {}, 'Tag', 'overview_analysis', 'ValueChangedFcn', @(~, ~) draw_overview());
+uilabel(ob, 'Text', '');
+matrix = uitable(ov, 'Data', cell(0, 2), 'ColumnName', {'Analysis', 'Quantity'}, 'RowName', {}, ...
+    'Tag', 'results_matrix', 'CellSelectionCallback', @on_matrix_select, ...
+    'Tooltip', 'Click a row to plot its analysis above');
+ov_number = 0;                                         % the analysis plotted below the matrix
+tab_table = uitab(tabs, 'Title', 'Table');
+tbl = uitable(uigridlayout(tab_table, [1 1]), 'Data', results, 'Tag', 'results_table');
+tab_console = uitab(tabs, 'Title', 'Log');
 console = uitextarea(uigridlayout(tab_console, [1 1]), 'Value', {''}, 'Editable', 'off', ...
     'Tag', 'console', 'FontName', 'Monospaced');
-tab_results = uitab(tabs, 'Title', 'Results');
-tbl = uitable(uigridlayout(tab_results, [1 1]), 'Data', results, 'Tag', 'results_table');
 
 status_bar = uigridlayout(main, [1 2]);
 status_bar.Layout.Row = 3; status_bar.Layout.Column = [1 2];
@@ -242,9 +266,14 @@ gauge = uigauge(status_bar, 'linear', 'Tag', 'progress', 'Limits', [0 100], 'Val
 %% Start
 apply_theme();
 add_files(files);
+if isempty(loaded)
+    refresh_signals();                                 % the empty list, with the hint to start
+end
 refresh_analyses();
 setappdata(fig, 'sqat_set_analyses', @set_analyses);   % the list from metric ids, for the tests
 setappdata(fig, 'sqat_run_description', @run_description);   % the Settings sheet, for the tests
+setappdata(fig, 'sqat_write_report', @write_report);
+setappdata(fig, 'sqat_session', @session);           % save or open a session without the file dialog, for the tests   % the PDF report, without its file dialog, for the tests
 setappdata(fig, 'sqat_stop', @on_stop_run);           % the Stop of the progress dialog, which a hidden window has not
 setappdata(fig, 'sqat_set_calibration', @set_calibration);   % the calibration without its dialog, for the tests
 write_log('Ready. Open WAV files, choose metrics and parameters, then press Run Analysis.');
@@ -316,6 +345,7 @@ end
 
     function on_signal_ticked(k, tf)
         loaded(k).marked = tf;
+        update_run_label();
         refresh_windows();
     end
 
@@ -363,6 +393,7 @@ end
             uibutton(analysis_list, 'Text', '', 'Icon', icon_remove, 'Tag', sprintf('analysis_remove_%d', k), ...
                 'Tooltip', 'Removes this analysis', 'ButtonPushedFcn', @(~, ~) on_remove_analysis(k));
         end
+        update_run_label();
     end
 
     function set_analyses(ids)
@@ -396,6 +427,25 @@ end
         else
             analyses(end+1) = analyses(end);
             analyses(end).n = next_analysis;
+        end
+        next_analysis = next_analysis + 1;
+        assign_keys();
+        refresh_analyses();
+    end
+
+    function on_add_metric(src, ~)
+        % a new analysis of the chosen metric, with its defaults; the menu goes back to its prompt
+        id = src.Value;
+        src.Value = '';
+        if isempty(id)
+            return
+        end
+        e = metrics(strcmp({metrics.id}, id));
+        a = struct('key', '', 'id', e.id, 'n', next_analysis, 'p', il_default_params(e));
+        if isempty(analyses)
+            analyses = a;
+        else
+            analyses(end+1) = a;
         end
         next_analysis = next_analysis + 1;
         assign_keys();
@@ -556,18 +606,117 @@ end
     end
 
     function show_results()
-        % the results as one list, and one tab per signal (Results #1, #2, ...) with its own rows
+        % the matrix of single values and its plot on the Results tab, the full list on Table
         tbl.Data = results;
-        delete(findobj(tabs, 'Tag', 'results_signal'));
-        for f = loaded
-            rows = strcmp(results.Path, f.path);        % two files may share a name
-            if any(rows)
-                t = uitab(tabs, 'Title', sprintf('Results #%d', f.id), 'Tag', 'results_signal');
-                uitable(uigridlayout(t, [1 1]), 'Data', ...
-                    results(rows, {'Analysis', 'Metric', 'Channel', 'Quantity', 'Value', 'Unit', 'Parameters'}), ...
-                    'RowName', {});
+        show_matrix();
+        draw_overview();
+        tabs.SelectedTab = tab_results;
+    end
+
+    function show_matrix()
+        % one row per analysis and quantity, one column per signal and channel, in
+        % the order of the run; UserData holds the analysis number of each row
+        mx_T = results;
+        mx_p = str2double(regexp(mx_T.Quantity, '\d+$', 'match', 'once'));   % N10, R95, LAF50: percentiles
+        mx_T = mx_T(isnan(mx_p) | ismember(mx_p, [5 90]), :);  % only the 5 and 90 %, as Gil asked; Table keeps all
+        mx_col = strcat(mx_T.Signal, ', ch', mx_T.Channel);
+        mx_col = strrep(mx_col, ', chBinaural', ', binaural');
+        [mx_cols, ~, mx_ic] = unique(mx_col, 'stable');
+        mx_row = strcat(mx_T.Analysis, '|', mx_T.Quantity);
+        [mx_rows, mx_ir, mx_jr] = unique(mx_row, 'stable');
+        mx_data = cell(numel(mx_rows), 2 + numel(mx_cols));
+        for mx_k = 1:numel(mx_rows)
+            mx_i = mx_ir(mx_k);
+            mx_data(mx_k, 1:2) = {il_key_label(store, run_key(mx_T.Analysis{mx_i})), sprintf('%s (%s)', mx_T.Quantity{mx_i}, mx_T.Unit{mx_i})};
+        end
+        for mx_k = 1:height(mx_T)
+            mx_data{mx_jr(mx_k), 2 + mx_ic(mx_k)} = mx_T.Value(mx_k);
+        end
+        matrix.Data = mx_data;
+        matrix.ColumnName = [{'Analysis', 'Quantity'}, strrep(mx_cols', '#', 'Signal #')];
+        matrix.UserData = cellfun(@(mx_r) str2double(erase(extractBefore(mx_r, '|'), '#')), mx_rows);
+        if ~ismember(ov_number, matrix.UserData)
+            ov_number = 0;
+            if ~isempty(matrix.UserData)
+                ov_number = matrix.UserData(1);
             end
         end
+    end
+
+    function on_matrix_select(src, event)
+        if isempty(event.Indices)
+            return
+        end
+        mx_n = src.UserData(event.Indices(1, 1));
+        if mx_n ~= ov_number
+            ov_number = mx_n;
+            draw_overview();
+        end
+    end
+
+    function mx_key = run_key(mx_a)
+        % the key of an analysis of the run ('#2' gives Loudness_ISO532_1#2)
+        mx_key = '';
+        mx_k = find([run_settings.analyses.n] == str2double(erase(mx_a, '#')), 1);
+        if ~isempty(mx_k)
+            mx_key = run_settings.analyses(mx_k).key;
+        end
+    end
+
+    function draw_overview()
+        % the analysis chosen in the matrix, for the signals still in the list:
+        % their lines overlaid, or their maps side by side
+        delete(ov_plot.Children);
+        ov_entries = store(strcmp({store.number}, sprintf('#%d', ov_number)) & ismember({store.file}, {loaded.path}));
+        if isempty(ov_entries)
+            set(dd_overview, 'Items', {});
+            uilabel(uigridlayout(ov_plot, [1 1]), 'HorizontalAlignment', 'center', ...
+                'Text', 'Run an analysis: its values appear above and its plot here.');
+            return
+        end
+        [ov_items, mx_data] = il_analysis_items(ov_entries);
+        ov_keep = ~ismember(mx_data, {'sqat', 'all', 'stats'});
+        ov_items = ov_items(ov_keep);
+        mx_data = mx_data(ov_keep);
+        if isempty(mx_data)
+            set(dd_overview, 'Items', {});
+            uilabel(uigridlayout(ov_plot, [1 1]), 'HorizontalAlignment', 'center', ...
+                'Text', 'This analysis has single values only.');
+            return
+        end
+        ov_wanted = dd_overview.Value;
+        set(dd_overview, 'Items', ov_items, 'ItemsData', mx_data);
+        if il_is_member(ov_wanted, mx_data)
+            dd_overview.Value = ov_wanted;
+        end
+        ov_chan = unique({ov_entries.channel});
+        ov_chan = il_if(isscalar(ov_chan), ov_chan{1}, '');
+        draw_analysis(ov_plot, ov_entries, dd_overview.Value, ov_chan);
+        for ov_ax = findall(ov_plot, 'Type', 'axes')'
+            ov_ax.Toolbar.Visible = 'off';
+        end
+        ov_a = ov_entries(1).analyses(strcmp({ov_entries(1).analyses.id}, dd_overview.Value));
+        if strcmp(ov_a.kind, 'series')               % against time: the playhead, and a click seeks
+            ov_ax = findall(ov_plot, 'Type', 'axes');
+            set(findobj(ov_ax, 'Type', 'line'), 'PickableParts', 'none');
+            ov_t = 0;
+            if ~isempty(wave_fs) && il_is_open(win_wave)
+                ov_t = (max(play_start, 1) - 1) / wave_fs;
+            end
+            xline(ov_ax, ov_t, 'Color', [0.85 0.2 0.2], 'LineWidth', 1.2, 'Tag', 'overview_playhead', ...
+                'PickableParts', 'none', 'HandleVisibility', 'off');
+            ov_ax.ButtonDownFcn = @(~, ev) on_overview_click(ev.IntersectionPoint(1));
+        end
+    end
+
+    function on_overview_click(t)
+        % a click on a plot against time takes the player of the waveform window there
+        if ~il_is_open(win_wave)
+            on_open_waveform();
+        end
+        seek(t);
+        set(findall(ov_plot, 'Tag', 'overview_playhead'), 'Value', ...
+            (min(max(round(t * wave_fs) + 1, 1), numel(wave_y)) - 1) / wave_fs);
     end
 
     function on_stop_run(~, ~)
@@ -599,7 +748,7 @@ end
             return
         end
         if isempty(analyses)
-            write_log('No metrics in the list of analyses. Add one with + Add.');
+            write_log('No metrics in the list of analyses. Add one with Add metric.');
             return
         end
         sel = {analyses.key};
@@ -820,18 +969,92 @@ end
             write_log('No results to export. Run an analysis first.');
             return
         end
-        [f, p] = uiputfile({'*.xlsx', 'Excel workbook (*.xlsx)'; '*.csv', 'CSV file (*.csv)'}, ...
+        [f, p] = uiputfile({'*.xlsx', 'Excel workbook (*.xlsx)'; '*.csv', 'CSV file (*.csv)'; ...
+            '*.pdf', 'PDF report: settings, single values and plots (*.pdf)'}, ...
             'Export results', 'SQAT_results.xlsx');
         focus_gui();
         if isequal(f, 0)
             return
         end
         try
+            if endsWith(f, '.pdf', 'IgnoreCase', true)
+                write_report(fullfile(p, f));
+                write_log(['Report written to ' fullfile(p, f)]);
+                return
+            end
             SQAT_GUI_export(results, fullfile(p, f), run_description());
             write_log(['Results exported to ' fullfile(p, f)]);
         catch err
             write_log(['ERROR exporting the results: ' err.message]);
         end
+    end
+
+    function on_session(what)
+        if strcmp(what, 'save')
+            [f, p] = uiputfile('*.mat', 'Save session', 'SQAT_session.mat');
+        else
+            [f, p] = uigetfile('*.mat', 'Open session');
+        end
+        focus_gui();
+        if ~isequal(f, 0)
+            session(what, fullfile(p, f));
+        end
+    end
+
+    function session(what, file)
+        % a session: the signals (path, channel, calibration, tick) and the
+        % analyses with their parameters; results are not kept, a run makes them
+        if strcmp(what, 'save')
+            se = struct('signals', loaded, 'analyses', analyses, 'next_analysis', next_analysis); %#ok<NASGU>
+            save(file, '-struct', 'se');
+            write_log(['Session saved to ' file]);
+            return
+        end
+        se = load(file);
+        while ~isempty(loaded)
+            remove_signal(1);                    % the signals of the session replace the list, results too
+        end
+        add_files({se.signals.path});
+        for se_f = se.signals
+            se_k = find(strcmp({loaded.path}, se_f.path), 1);
+            if isempty(se_k)
+                write_log(['ERROR: not found, left out of the session: ' se_f.path]);
+                continue
+            end
+            loaded(se_k).channel = se_f.channel;
+            loaded(se_k).marked = se_f.marked;
+            loaded(se_k).dBFS = se_f.dBFS;
+            loaded(se_k).cal_set = se_f.cal_set;
+            loaded(se_k).cal = se_f.cal;
+        end
+        analyses = se.analyses;
+        next_analysis = se.next_analysis;
+        assign_keys();
+        refresh_signals();
+        refresh_analyses();
+        write_log(['Session opened from ' file]);
+    end
+
+    function write_report(file)
+        % the report: the settings, the matrix of single values and, per analysis
+        % of the run, the first plot that the Results tab offers for it
+        rp_groups = struct('title', {}, 'analyses', {}, 'names', {});
+        for rp_n = unique(matrix.UserData, 'stable')'
+            rp_e = store(strcmp({store.number}, sprintf('#%d', rp_n)) & ismember({store.file}, {loaded.path}));
+            if isempty(rp_e)
+                continue
+            end
+            [~, rp_ids] = il_analysis_items(rp_e);
+            rp_ids = rp_ids(~ismember(rp_ids, {'sqat', 'all', 'stats'}));
+            if isempty(rp_ids)
+                continue
+            end
+            rp_a = arrayfun(@(e) e.analyses(strcmp({e.analyses.id}, rp_ids{1})), rp_e);
+            rp_names = arrayfun(@il_tag, rp_e, 'UniformOutput', false);
+            rp_groups(end+1) = struct('title', sprintf('%s: %s', il_key_label(store, rp_e(1).metric), rp_a(1).label), ...
+                'analyses', rp_a, 'names', {rp_names}); %#ok<AGROW>
+        end
+        SQAT_GUI_report(file, run_description(), matrix.ColumnName(:)', matrix.Data, rp_groups);
     end
 
     function S = run_description()
@@ -1571,12 +1794,29 @@ end
         end
         if n == 0
             lbl_files.Text = 'No files loaded';
+            h = uilabel(signal_list, 'Text', 'Open WAV files to start: the button above, top right.', ...
+                'FontAngle', 'italic', 'Tag', 'signals_hint');
+            h.Layout.Row = 2;
+            h.Layout.Column = [3 6];
         elseif n == 1
             lbl_files.Text = '1 file loaded';
         else
             lbl_files.Text = sprintf('%d files loaded', n);
         end
         mark_active();
+        update_run_label();
+    end
+
+    function update_run_label()
+        % the button tells what a run computes: the ticked signals times the analyses
+        n_s = nnz([loaded.marked]);
+        n_a = numel(analyses);
+        if n_s == 0 || n_a == 0
+            btn_run.Text = 'Run Analysis';
+        else
+            btn_run.Text = sprintf('Run %d %s %c %d %s', n_s, il_if(n_s == 1, 'signal', 'signals'), 215, ...
+                n_a, il_if(n_a == 1, 'analysis', 'analyses'));
+        end
     end
 
     function mark_active()
@@ -2769,6 +3009,7 @@ end
             return
         end
         t_now = (sample - 1) / wave_fs;
+        set(findall(ov_plot, 'Tag', 'overview_playhead'), 'Value', t_now);
         set(findobj(win_wave, 'Tag', 'playhead'), 'Value', t_now);
         set(findobj(win_wave, 'Tag', 'playhead_spectrogram'), 'Value', t_now);
     end
@@ -2900,8 +3141,20 @@ end
         end
     end
 
+    function status_colour(is_error)
+        % red for an error, else the colour of the theme
+        if is_error
+            lbl_status.FontColor = [0.85 0.2 0.2];
+        elseif isprop(lbl_status, 'FontColorMode')
+            lbl_status.FontColorMode = 'auto';
+        else
+            lbl_status.FontColor = [0 0 0];
+        end
+    end
+
     function set_status(text)
         lbl_status.Text = text;
+        status_colour(false);
         if il_is_open(dlg)
             dlg.Message = text;
         end
@@ -2946,6 +3199,10 @@ end
             lines = {};
         end
         console.Value = [lines(:); {sprintf('[%s] %s', stamp, msg)}];
+        if startsWith(msg, {'ERROR', 'No '})       % what needs the eye shows on the status bar too
+            lbl_status.Text = msg;
+            status_colour(startsWith(msg, 'ERROR'));
+        end
         try
             scroll(console, 'bottom');
         catch
@@ -3180,6 +3437,10 @@ switch q
     case 'PNLTM', u = 'TPNdB'; return
     case 'time',  u = 's';     return
     case {'N_ratio', 'ScalarPA'}, u = '-'; return
+end
+if strcmp(id, 'Do_SLM')
+    u = 'dB';
+    return
 end
 if contains(q, 'Level')
     u = 'phon';
