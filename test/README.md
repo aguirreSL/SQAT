@@ -49,6 +49,17 @@ Program etc.zip`). Unzip it into `test/reference/data/ISO 532-1 - Program etc`
 (ignored by git), or point the environment variable `SQAT_ISO532_1_DIR` at
 the folder. Without them the tests are reported as incomplete.
 
+The reference tests of the roughness (Daniel and Weber, ECMA-418-2), the
+fluctuation strength and the sharpness run the scripts of `validation/` on
+the sounds of the SQAT v1.0 dataset, Zenodo record 7933206 (CC BY 4.0,
+https://doi.org/10.5281/zenodo.7933206), unzipped into
+`sound_files/validation_SQAT_v1_0`. Against data of listening tests the
+tolerance (17 % or 10 % JND, 0.1 asper) is a hard limit only at the
+reference signal: point by point it would reject the models themselves, so
+the RMSE of each case is pinned and may only improve, and the points inside
+the band are reported (the rule of PRs 60 and 62). The sharpness keeps the
+5 % of DIN 45692 as a hard limit.
+
 ## Continuous integration
 
 `.github/workflows/tests.yml` runs every night at 03:00 UTC and on demand:
