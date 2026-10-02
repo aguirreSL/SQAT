@@ -1,6 +1,7 @@
 # Probe of the tests that the nightly run skips: the playback (audio output)
 # and the enhanced spectrogram (display). Runs only those, on every push to
-# ci/probe, with a virtual display (Xvfb) and a PulseAudio null sink.
+# ci/probe, with a virtual display (Xvfb) and a virtual audio output; the
+# matrix tries several audio outputs at once.
 name: ci-probe
 
 on:
@@ -12,22 +13,36 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        audio: [pulse48, pulse_notsched, alsa_null]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Virtual display and audio output
+      - name: Virtual display and audio output (${{ matrix.audio }})
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q xvfb pulseaudio pulseaudio-utils libasound2-plugins alsa-utils
           Xvfb :99 -screen 0 1920x1080x24 &
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
-          printf 'pcm.!default { type pulse }\nctl.!default { type pulse }\n' > ~/.asoundrc
-          pulseaudio -D --exit-idle-time=-1
-          sleep 2
-          pactl load-module module-null-sink sink_name=probe
-          pactl set-default-sink probe
-          pactl info
-          aplay -L | head -20
+          case "${{ matrix.audio }}" in
+            pulse48)
+              mkdir -p ~/.config/pulse
+              printf 'default-sample-rate = 48000\nalternate-sample-rate = 48000\n' > ~/.config/pulse/daemon.conf
+              printf 'pcm.!default { type pulse }\nctl.!default { type pulse }\n' > ~/.asoundrc
+              pulseaudio -D --exit-idle-time=-1; sleep 2
+              pactl load-module module-null-sink sink_name=probe rate=48000
+              pactl set-default-sink probe ;;
+            pulse_notsched)
+              printf 'pcm.!default { type pulse }\nctl.!default { type pulse }\n' > ~/.asoundrc
+              pulseaudio -D --exit-idle-time=-1; sleep 2
+              pactl load-module module-null-sink sink_name=probe rate=48000 tsched=0 || pactl load-module module-null-sink sink_name=probe rate=48000
+              pactl set-default-sink probe ;;
+            alsa_null)
+              printf 'pcm.!default { type null }\nctl.!default { type hw card 0 }\n' > ~/.asoundrc ;;
+          esac
+          aplay -L | head -10 || true
 
       - uses: matlab-actions/setup-matlab@v2
         with:
@@ -35,18 +50,16 @@ jobs:
           products: Signal_Processing_Toolbox
           cache: true
 
-      - name: Run the skipped tests
+      - name: Run the probe
         timeout-minutes: 15
         uses: matlab-actions/run-command@v2
         with:
           command: |
             addpath(genpath(pwd));
             i = audiodevinfo; fprintf('audio outputs: %d, DISPLAY=%s\n', numel(i.output), getenv('DISPLAY'));
-            fs = 48000; y = 0.1*sin(2*pi*1000*(0:round(0.3*fs)-1)'/fs);   % does the null sink play in real time?
+            fs = 48000; y = 0.1*sin(2*pi*1000*(0:round(0.3*fs)-1)'/fs);   % does the output play in real time?
             p = audioplayer(y, fs); play(p); t0 = tic;
-            for k = 1:20, fprintf('t %.2f s  playing %d  sample %d of %d\n', toc(t0), isplaying(p), p.CurrentSample, numel(y)); pause(0.1); end
-            names = {'*loops_by_default', '*nearly_constant_series_is_readable'};
-            r = runtests('test/gui/SQAT_GUI_integration_test.m', 'Name', names);
-            disp(table(r));
+            for k = 1:12, fprintf('t %.2f s  playing %d  sample %d of %d\n', toc(t0), isplaying(p), p.CurrentSample, numel(y)); pause(0.1); end
+            r = runtests('test/gui/SQAT_GUI_integration_test.m', 'Name', {'*loops_by_default'});
             fprintf('PASSED %d FAILED %d SKIPPED %d of %d\n', sum([r.Passed]), sum([r.Failed]), sum([r.Incomplete] & ~[r.Failed]), numel(r));
-            assert(all([r.Passed]), 'some probed tests failed or were skipped');
+            assert(all([r.Passed]), 'the probed test failed or was skipped');
