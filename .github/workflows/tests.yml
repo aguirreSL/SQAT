@@ -59,6 +59,21 @@ jobs:
           cp -R "$src"/. sound_files/validation_SQAT_v1_0/
           ls sound_files/validation_SQAT_v1_0
 
+      # a virtual display and audio output, so that the playback and the enhanced
+      # spectrogram tests of the GUI run here too (only the end of a file needs
+      # an output that plays in real time, which this one does not: that test skips)
+      - name: Virtual display and audio output
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q xvfb pulseaudio pulseaudio-utils libasound2-plugins
+          Xvfb :99 -screen 0 1920x1080x24 &
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          printf 'pcm.!default { type pulse }\nctl.!default { type pulse }\n' > ~/.asoundrc
+          pulseaudio -D --exit-idle-time=-1
+          sleep 2
+          pactl load-module module-null-sink sink_name=ci
+          pactl set-default-sink ci
+
       - uses: matlab-actions/setup-matlab@v2
         with:
           release: R2026a
