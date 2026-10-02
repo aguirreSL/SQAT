@@ -170,7 +170,8 @@ jobs:
       - name: Join the three blocks into one report
         run: |
           ls -R blocks | head -30
-          python3 test/report/merge_reports.py site/index.html blocks/report-gui/data.json blocks/report-reference/data.json blocks/report-unit/data.json
+          # the page goes out also when a test failed: that is when it is read
+          python3 test/report/merge_reports.py site/index.html blocks/report-gui/data.json blocks/report-reference/data.json blocks/report-unit/data.json || echo "some tests failed: see the report"
           for b in gui reference unit; do cp blocks/report-$b/runner.log site/runner-$b.log 2>/dev/null || true; done
 
       - uses: actions/upload-pages-artifact@v3
