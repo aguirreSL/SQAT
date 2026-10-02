@@ -12,7 +12,9 @@ function ok = sqat_report_build(varargin)
 %   The page is template.html with the data of the run injected: the result
 %   of every test, its failure output, what it checks (the comment block under
 %   its function line) and the error of every comparison recorded with
-%   sqat_report_record.
+%   sqat_report_record. The same data goes to test/report/out/data.json, so
+%   that the runs of several folders (the parallel jobs of the CI) can be
+%   joined into one page by merge_reports.py.
 
 here = fileparts(mfilename('fullpath'));
 root_test = fileparts(here);
@@ -85,6 +87,9 @@ meta = struct('date', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm')), ...
 data = struct('meta', meta, 'tests', {tests}, 'records', fileread(records), 'log', log);
 json = strrep(jsonencode(data), '</', '<\/');
 
+fid = fopen(fullfile(out, 'data.json'), 'w', 'n', 'UTF-8');
+fprintf(fid, '%s', json);
+fclose(fid);
 page = strrep(fileread(fullfile(here, 'template.html')), '/*__DATA__*/', ['window.REPORT = ' json ';']);
 fid = fopen(fullfile(out, 'index.html'), 'w', 'n', 'UTF-8');
 fprintf(fid, '%s', page);

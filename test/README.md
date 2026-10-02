@@ -64,7 +64,17 @@ the band are reported (the rule of PRs 60 and 62). The sharpness keeps the
 
 `.github/workflows/tests.yml` runs every night at 03:00 UTC and on demand:
 it merges the main of ggrecow/SQAT and the GUI branch of this fork
-(feat/sqat-gui), downloads the ISO 532-1 signals, runs
-the whole suite on MATLAB R2026a and publishes the report on
-https://aguirresl.github.io/SQAT/. When every test passes, the merge is
-pushed, so this main follows the upstream one with the tests on top.
+(feat/sqat-gui) and runs the three folders of the suite in parallel, one
+machine each, on MATLAB R2026a: `gui` (with a virtual display and audio
+output), `reference` (with the ISO 532-1 signals and the Zenodo sounds) and
+`unit`. `test/report/merge_reports.py` joins their `data.json` into one
+report, published on https://aguirresl.github.io/SQAT/. When every test
+passes, the merge is pushed, so this main follows the upstream one with the
+tests on top.
+
+The `reference` block recomputes the validation scripts (about 11 min). Its
+result is cached under a hash of the code it tests (the metrics, the
+utilities, the validation scripts and the reference tests) and reused while
+that code does not change; the report then says so under Notes. It runs in
+full every Sunday and when the run is started with `full`, so a change of the
+environment, such as a MATLAB update, still shows.

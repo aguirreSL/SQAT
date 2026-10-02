@@ -205,7 +205,7 @@ function vWelcome() {
    <li>${t2("Uma tolerancia folgada deixa a utilizacao baixa: leia sempre a coluna <i>Tolerancia</i> junto com a barra.", "A loose tolerance keeps utilization low: always read the <i>Tolerance</i> column together with the bar.")}</li>
    <li>${t2("Nem todo teste compara numeros: os que nao registram comparacoes so passam ou falham.", "Not every test compares numbers: those that record no comparison only pass or fail.")}</li></ul>
   <h3>${t2("Como gerar", "How to generate")}</h3><pre tabindex="0">matlab -batch "addpath('test/report'); sqat_report_build"          % ${t2("tudo", "everything")}\nmatlab -batch "addpath('test/report'); sqat_report_build('unit')"  % ${t2("uma pasta", "one folder")}</pre>
-  <h3>${t2("Esta execucao", "This run")}</h3><dl class="kv"><dt>${t2("Data", "Date")}</dt><dd>${esc(M.date)}</dd><dt>Commit</dt><dd>${esc(M.git)}${M.dirty ? " " + t2("(arvore com alteracoes)", "(working tree with changes)") : ""}</dd><dt>MATLAB</dt><dd>${esc(M.matlab)}</dd><dt>${t2("Maquina", "Machine")}</dt><dd>${esc(M.machine)}, ${M.cores} cores</dd></dl></div>`;
+  <h3>${t2("Esta execucao", "This run")}</h3><dl class="kv"><dt>${t2("Data", "Date")}</dt><dd>${esc(M.date)}</dd><dt>Commit</dt><dd>${esc(M.git)}${M.dirty ? " " + t2("(arvore com alteracoes)", "(working tree with changes)") : ""}</dd><dt>MATLAB</dt><dd>${esc(M.matlab)}</dd><dt>${t2("Maquina", "Machine")}</dt><dd>${esc(M.machine)}, ${M.cores} cores</dd>${M.notes ? `<dt>${t2("Notas", "Notes")}</dt><dd lang="en">${esc(M.notes)}</dd>` : ""}</dl></div>`;
 }
 
 function vOverview() {
