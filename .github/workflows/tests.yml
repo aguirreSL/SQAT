@@ -162,6 +162,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ci/nightly-merge
+          fetch-depth: 0               # the push of the merge needs the history of main
 
       - uses: actions/download-artifact@v4
         with:
