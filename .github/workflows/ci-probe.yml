@@ -42,11 +42,10 @@ jobs:
           command: |
             addpath(genpath(pwd));
             i = audiodevinfo; fprintf('audio outputs: %d, DISPLAY=%s\n', numel(i.output), getenv('DISPLAY'));
-            names = {'*colour_floor*', '*comes_from_the_background_pool', '*follows_a_new_signal_while_computing', ...
-                     '*follows_a_zoom_of_the_waveform', '*shows_a_preview_first', '*space_plays_from_the_main_window', ...
-                     '*box_loop_is_left_and_entered_by_clicks', '*close_while_a_map_is_computed', '*loops_by_default', ...
-                     '*loops_inside_the_box', '*play_starts_where_the_click_was*', '*space_starts_and_pauses_playback', ...
-                     '*shows_the_signal_and_follows_playback', '*nearly_constant_series_is_readable'};
+            fs = 48000; y = 0.1*sin(2*pi*1000*(0:round(0.3*fs)-1)'/fs);   % does the null sink play in real time?
+            p = audioplayer(y, fs); play(p); t0 = tic;
+            for k = 1:20, fprintf('t %.2f s  playing %d  sample %d of %d\n', toc(t0), isplaying(p), p.CurrentSample, numel(y)); pause(0.1); end
+            names = {'*loops_by_default', '*nearly_constant_series_is_readable'};
             r = runtests('test/gui/SQAT_GUI_integration_test.m', 'Name', names);
             disp(table(r));
             fprintf('PASSED %d FAILED %d SKIPPED %d of %d\n', sum([r.Passed]), sum([r.Failed]), sum([r.Incomplete] & ~[r.Failed]), numel(r));
