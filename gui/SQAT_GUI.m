@@ -161,16 +161,17 @@ cmap = load('cmap_inferno.txt');                                    % the colour
 %% Main window
 fig = uifigure('Name', 'SQAT: Sound Quality Analysis Toolbox', ...
     'Position', [40 30 1460 900], 'Visible', opts.Visible, 'Tag', 'SQAT_GUI', ...
-    'CloseRequestFcn', @on_close, 'CreateFcn', '');   % skips a user default CreateFcn
+    'CloseRequestFcn', @on_close, 'CreateFcn', '', ...   % skips a user default CreateFcn
+    'KeyPressFcn', @on_main_key);
 m_file = uimenu(fig, 'Text', 'File');
 uimenu(m_file, 'Text', 'Open session...', 'MenuSelectedFcn', @(~, ~) on_session('open'));
 uimenu(m_file, 'Text', 'Save session...', 'MenuSelectedFcn', @(~, ~) on_session('save'));
 main = uigridlayout(fig, [3 2]);
-main.RowHeight = {44, '1x', 30};
+main.RowHeight = {64, '1x', 30};                 % the logo as tall as the Actions panel beside it
 main.ColumnWidth = {600, '1x'};                  % the lists get the room, the console the rest
 
 top = uigridlayout(main, [1 3]);
-top.Layout.Row = 1; top.Layout.Column = [1 2];
+top.Layout.Row = 1; top.Layout.Column = 1;
 top.Padding = [0 0 0 0];
 top.ColumnWidth = {70, 440, '1x'};
 img_logo = uiimage(top, 'ImageSource', fullfile(dir_logos, 'logo_white.png'), 'Tag', 'logo');
@@ -180,7 +181,7 @@ uilabel(top, 'Text', '');
 left = uigridlayout(main, [2 1]);
 left.Layout.Row = 2; left.Layout.Column = 1;
 left.Padding = [0 0 0 0];
-left.RowHeight = {220, '1x'};
+left.RowHeight = {'1x', '1x'};
 sig_box = uigridlayout(uipanel(left), [2 1]);          % a box around each list, to set them apart
 sig_box.RowHeight = {28, '1x'};
 sig_box.Padding = [6 6 6 6];
@@ -200,7 +201,7 @@ signal_list.RowSpacing = 4;
 ah = uigridlayout(ana_box, [1 3]);
 ah.Padding = [0 0 0 0];
 ah.ColumnWidth = {'1x', 190, 100};
-uilabel(ah, 'Text', '2   ANALYSES (gear: parameters)', 'FontWeight', 'bold');
+uilabel(ah, 'Text', '2   ANALYSES', 'FontWeight', 'bold');
 uidropdown(ah, 'Items', [{'+ Add metric...'}, {metrics.label}], 'ItemsData', [{''}, {metrics.id}], ...
     'Value', '', 'Tag', 'add_metric', 'ValueChangedFcn', @on_add_metric, ...
     'Tooltip', 'Adds an analysis of the chosen metric, with its default parameters');
@@ -211,23 +212,22 @@ analysis_list.ColumnWidth = {30, 175, '1x', 36, 28};
 analysis_list.Padding = [0 0 0 0];
 
 right = uigridlayout(main, [2 1]);
-right.Layout.Row = 2; right.Layout.Column = 2;
+right.Layout.Row = [1 2]; right.Layout.Column = 2;  % Actions up beside the logo, the results below
 right.Padding = [0 0 0 0];
 right.RowHeight = {64, '1x'};
 
 save_folder = pwd;                                     % the folder of the last save
 split_figures = false;                                 % one tab and one file per panel: no control for now
 
-act_panel = uipanel(right, 'Title', 'ACTIONS');
-ag = uigridlayout(act_panel, [1 5]);
-ag.ColumnWidth = {'1.4x', '1x', '1x', '1x', 36};
-ag.Padding = [6 4 6 4];
-btn_run = uibutton(ag, 'Text', 'Run Analysis', 'Tag', 'run', 'FontWeight', 'bold', ...
+ag = uigridlayout(right, [1 5]);                       % the buttons alone, as tall as the logo row
+ag.ColumnWidth = {'1.4x', '1x', '1x', '1x', 48};
+ag.Padding = [0 4 0 4];
+btn_run = uibutton(ag, 'Text', 'Run Analysis', 'Tag', 'run', 'FontWeight', 'bold', 'FontSize', 15, ...
     'BackgroundColor', green, 'FontColor', [1 1 1], 'ButtonPushedFcn', @on_run);
-uibutton(ag, 'Text', 'Open Graphs Window', 'Tag', 'open_graphs', 'ButtonPushedFcn', @on_open_graphs);
-uibutton(ag, 'Text', 'Waveform / Play', 'Tag', 'open_waveform', 'ButtonPushedFcn', @on_open_waveform);
-uibutton(ag, 'Text', 'Export results...', 'Tag', 'export', 'ButtonPushedFcn', @on_export);
-btn_theme = uibutton(ag, 'Text', char(9788), 'FontSize', 18, 'Tag', 'theme', ...
+uibutton(ag, 'Text', 'Open Graphs Window', 'Tag', 'open_graphs', 'FontSize', 14, 'ButtonPushedFcn', @on_open_graphs);
+uibutton(ag, 'Text', 'Waveform / Play', 'Tag', 'open_waveform', 'FontSize', 14, 'ButtonPushedFcn', @on_open_waveform);
+uibutton(ag, 'Text', 'Export results...', 'Tag', 'export', 'FontSize', 14, 'ButtonPushedFcn', @on_export);
+btn_theme = uibutton(ag, 'Text', char(9788), 'FontSize', 22, 'Tag', 'theme', ...
     'Tooltip', 'Light theme', 'ButtonPushedFcn', @on_theme);   % a sun, or a moon in the light theme
 
 % the results: the single values of the signals side by side, and below them
@@ -709,11 +709,27 @@ end
         end
     end
 
-    function on_overview_click(t)
-        % a click on a plot against time takes the player of the waveform window there
+    function on_main_key(~, event)
+        % the space bar plays and pauses from the main window too; the player
+        % lives in the waveform window, which opens behind when it is closed
+        if strcmp(event.Key, 'space') && ~isempty(loaded)
+            open_player();
+            toggle_play();
+        end
+    end
+
+    function open_player()
         if ~il_is_open(win_wave)
             on_open_waveform();
+            if strcmp(fig.Visible, 'on')
+                figure(fig);                         % the main window keeps the focus
+            end
         end
+    end
+
+    function on_overview_click(t)
+        % a click on a plot against time takes the player of the waveform window there
+        open_player();
         seek(t);
         set(findall(ov_plot, 'Tag', 'overview_playhead'), 'Value', ...
             (min(max(round(t * wave_fs) + 1, 1), numel(wave_y)) - 1) / wave_fs);
@@ -961,6 +977,10 @@ end
             elseif strcmp(fig.Visible, 'on')
                 figure(live_window());
             end
+        end
+        try
+            focus(matrix);                       % off the Run button: a space would press it again
+        catch
         end
     end
 
