@@ -29,9 +29,16 @@ tc.TestData.x_burst = x_burst;
 tc.TestData.wav_mono = fullfile(dir_tmp, 'tone_mono.wav');
 tc.TestData.wav_stereo = fullfile(dir_tmp, 'tone_stereo.wav');
 tc.TestData.wav_burst = fullfile(dir_tmp, 'burst.wav');
+% the first second of the mono and the stereo tone: enough for the tests that
+% run the ECMA-418-2 metrics twice (through the GUI and directly), which take
+% most of the time of the suite on 3 s
+tc.TestData.wav_mono_1s = fullfile(dir_tmp, 'tone_mono_1s.wav');
+tc.TestData.wav_stereo_1s = fullfile(dir_tmp, 'tone_stereo_1s.wav');
 audiowrite(tc.TestData.wav_mono, x_mono, fs, 'BitsPerSample', 32);
 audiowrite(tc.TestData.wav_stereo, x_stereo, fs, 'BitsPerSample', 32);
 audiowrite(tc.TestData.wav_burst, x_burst, fs, 'BitsPerSample', 32);
+audiowrite(tc.TestData.wav_mono_1s, x_mono(1:fs), fs, 'BitsPerSample', 32);
+audiowrite(tc.TestData.wav_stereo_1s, x_stereo(1:fs, :), fs, 'BitsPerSample', 32);
 % 1 kHz, 60 dB SPL, 100 % modulated at 70 Hz: nearly constant roughness
 x_rough = sqrt(2)*2e-5*10^(60/20) * (1 + sin(2*pi*70*t)) .* sin(2*pi*1000*t) / sqrt(1.5);
 tc.TestData.wav_rough = fullfile(dir_tmp, 'am70.wav');
@@ -71,8 +78,8 @@ fig = SQAT_GUI({}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 tc.verifyClass(fig, 'matlab.ui.Figure');
 for tag = {'logo','file_count','load_files','signals_list','theme', ...
-           'add_analysis','analysis_list','run','open_graphs','open_waveform','export', ...
-           'console','results_table','results_matrix','overview_plot','status','progress'}
+           'add_analysis','analysis_list','run','open_graphs','export', ...
+           'console','results_table','results_matrix','waveform_dock','status','progress'}
     tc.verifyNotEmpty(findobj(fig, 'Tag', tag{1}), ['missing control: ' tag{1}]);
 end
 tc.verifyNotEmpty(findobj(fig, 'Tag', 'signals_hint'));        % the empty list says how to start
@@ -107,8 +114,6 @@ il_press(fig, 'run');
 tc.verifySubstring(findobj(fig, 'Tag', 'status').Text, 'Done');
 il_press(fig, 'open_graphs');
 tc.verifyNumElements(il_window('SQAT_GUI_graphs'), 1);
-il_press(fig, 'open_waveform');
-tc.verifyNumElements(il_window('SQAT_GUI_waveform'), 1);
 end
 
 function test_gui_windows_skip_a_user_default_CreateFcn(tc)
@@ -125,9 +130,8 @@ tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Roughness_Daniel1997'});
 il_press(fig, 'run');
 il_press(fig, 'open_graphs');
-il_press(fig, 'open_waveform');
-wins = [fig, il_window('SQAT_GUI_graphs'), il_window('SQAT_GUI_waveform')];
-tc.assertNumElements(wins, 3);
+wins = [fig, il_window('SQAT_GUI_graphs')];
+tc.assertNumElements(wins, 2);
 created = getappdata(groot, 'sqat_gui_created');
 for k = 1:numel(wins)
     tc.verifyFalse(any(cellfun(@(f) isequal(f, wins(k)), created)), ...
@@ -139,8 +143,7 @@ function test_gui_play_and_stop_never_break_the_interface(tc)
 % Audio output may be missing (batch mode); the buttons must then only log it.
 fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 il_press(w, 'play');
 il_press(w, 'stop');
 log = strjoin(findobj(fig, 'Tag', 'console').Value, newline);
@@ -280,7 +283,8 @@ end
 
 function test_gui_theme_switches_between_dark_and_light(tc)
 % The window starts dark, as pySQAT, with the white logo and a sun on the
-% theme button; the button switches to light, with the dark logo and a moon.
+% theme button; the button switches to light, with the dark logo, a moon and
+% white in place of the light grey of MATLAB, and back to dark.
 % Before R2025a the window stays light and the button is disabled, with a
 % tooltip naming R2025a.
 fig = SQAT_GUI({}, 'Visible', 'off');
@@ -305,6 +309,13 @@ tc.verifyTrue(endsWith(logo.ImageSource, 'logo.png'));
 tc.verifyTrue(isfile(logo.ImageSource));
 tc.verifyEqual(b.Text, char(9790));                 % a moon
 tc.verifySubstring(b.Tooltip, 'Dark');
+dock = findobj(fig, 'Tag', 'waveform_dock');         % the light theme in white, not the grey of MATLAB
+tc.verifyEqual(fig.Color, [1 1 1]);
+tc.verifyEqual(dock.BackgroundColor, [1 1 1]);
+tc.verifyEqual(findobj(fig, 'Tag', 'signals_list').BackgroundColor, [1 1 1]);
+il_press(fig, 'theme');                              % and dark again: the colours of the theme
+tc.verifyLessThan(fig.Color, 0.5);
+tc.verifyLessThan(dock.BackgroundColor, 0.5);
 end
 
 function test_gui_status_bar_follows_the_run(tc)
@@ -351,16 +362,15 @@ tc.verifySubstring(findobj(fig, 'Tag', 'status').Text, 'Done');
 end
 
 function test_gui_results_matrix_sets_the_signals_side_by_side(tc)
-% The Results tab opens after a run with a matrix: one row per analysis and
+% After a run the Results tab holds a matrix: one row per analysis and
 % quantity, one column per signal and channel, each cell the value of the full
-% table. Below it, the plot of the analysis of the chosen row overlays the
-% signals; a click on another row plots that analysis; a removed signal takes
-% its column away.
+% table; the Waveform tab stays on screen; a removed signal takes its column
+% away.
 fig = SQAT_GUI({tc.TestData.wav_mono, tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Loudness_ISO532_1', 'Roughness_Daniel1997'});
 il_press(fig, 'run');
-tc.verifyEqual(findobj(fig, 'Type', 'uitab', 'Title', 'Results').Parent.SelectedTab.Title, 'Results');
+tc.verifyEqual(findobj(fig, 'Type', 'uitab', 'Title', 'Results').Parent.SelectedTab.Title, 'Waveform');   % the player stays on screen
 M = findobj(fig, 'Tag', 'results_matrix');
 tc.verifyEqual(M.ColumnName(:)', {'Analysis', 'Quantity', 'Signal #1, ch1', 'Signal #2, ch1'});
 T = findobj(fig, 'Tag', 'results_table').Data;
@@ -370,13 +380,6 @@ tc.verifyEqual(M.Data{row, 3}, T.Value(strcmp(T.File, 'tone_mono.wav') & strcmp(
 tc.verifyEqual(M.Data{row, 4}, T.Value(strcmp(T.File, 'tone_1k_60dB.wav') & strcmp(T.Quantity, 'N5')));
 tc.verifyEmpty(find(strcmp(M.Data(:, 2), 'N10 (sone)'), 1));     % percentiles: only 5 and 90 %
 tc.verifyNotEmpty(find(strcmp(M.Data(:, 2), 'N90 (sone)'), 1));
-plot_lines = @() findobj(findobj(fig, 'Tag', 'overview_plot'), 'Type', 'line');
-tc.verifyNumElements(plot_lines(), 2);                         % the loudness of both signals
-tc.verifyEqual(findobj(fig, 'Tag', 'overview_analysis').Value, 'loudness');
-r2 = find(M.UserData == 2, 1);                                 % a row of the roughness
-M.CellSelectionCallback(M, struct('Indices', [r2 1]));
-tc.verifyEqual(findobj(fig, 'Tag', 'overview_analysis').Value, 'roughness');
-tc.verifyNumElements(plot_lines(), 2);
 il_remove_signal(fig, 1);
 tc.verifyEqual(M.ColumnName(:)', {'Analysis', 'Quantity', 'Signal #2, ch1'});
 end
@@ -410,7 +413,7 @@ function test_gui_all_channels_runs_a_binaural_pair_in_one_call(tc)
 % With All on a stereo file, ISO 532-1 loudness gives channels 1 and 2
 % interleaved, and ECMA-418-2 loudness gives 1, 2 and Binaural from one call;
 % the values equal those of direct calls of the metrics.
-fig = SQAT_GUI({tc.TestData.wav_stereo}, 'Visible', 'off');
+fig = SQAT_GUI({tc.TestData.wav_stereo_1s}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Loudness_ISO532_1', 'Loudness_ECMA418_2'});
 il_signal_channel(fig, 1, 'All');
@@ -426,7 +429,7 @@ tc.verifyEqual(iso.Quantity(3), iso.Quantity(4));
 tc.verifyEqual(ecma.Channel(1:3), {'1'; '2'; 'Binaural'});
 tc.verifyEqual(unique(ecma.Channel, 'stable'), {'1'; '2'; 'Binaural'});
 % the values are the ones of the direct calls
-ref = audioread(tc.TestData.wav_stereo); fs = tc.TestData.fs;
+ref = audioread(tc.TestData.wav_stereo_1s); fs = tc.TestData.fs;
 [~, r2] = evalc('Loudness_ISO532_1(ref(:, 2), fs, 0, 2, 0.5, false)');
 row = strcmp(iso.Channel, '2') & strcmp(iso.Quantity, 'N5');
 tc.verifyEqual(iso.Value(row), r2.N5);
@@ -439,9 +442,9 @@ row = strcmp(ecma.Channel, 'Binaural') & strcmp(ecma.Quantity, 'Nmean');
 tc.verifyEqual(ecma.Value(row), rb.Nmean(3));
 % the pair was analysed in one call
 log = strjoin(findobj(fig, 'Tag', 'console').Value, newline);
-tc.verifyEqual(numel(strfind(log, 'Running Loudness_ECMA418_2 on tone_stereo.wav')), 1);
-tc.verifySubstring(log, 'Running Loudness_ECMA418_2 on tone_stereo.wav, both channels');
-tc.verifyEqual(numel(strfind(log, 'Running Loudness_ISO532_1 on tone_stereo.wav')), 2);
+tc.verifyEqual(numel(strfind(log, 'Running Loudness_ECMA418_2 on tone_stereo_1s.wav')), 1);
+tc.verifySubstring(log, 'Running Loudness_ECMA418_2 on tone_stereo_1s.wav, both channels');
+tc.verifyEqual(numel(strfind(log, 'Running Loudness_ISO532_1 on tone_stereo_1s.wav')), 2);
 end
 
 function test_gui_edits_the_parameters_of_a_metric(tc)
@@ -658,25 +661,25 @@ end
 function test_gui_run_keeps_the_results_that_did_not_change(tc)
 % an analysis added to the list runs alone; a change of calibration, channel or
 % parameters runs the analysis again
-fig = SQAT_GUI({tc.TestData.wav_stereo}, 'Visible', 'off');
+fig = SQAT_GUI({tc.TestData.wav_stereo_1s}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Loudness_ISO532_1'});
 il_press(fig, 'run');
-v1 = il_value(fig, 'tone_stereo.wav', 'Loudness_ISO532_1', 'Nmean');
+v1 = il_value(fig, 'tone_stereo_1s.wav', 'Loudness_ISO532_1', 'Nmean');
 il_select_metrics(fig, {'Loudness_ISO532_1', 'Roughness_Daniel1997'});
 il_press(fig, 'run');
 log = strjoin(findobj(fig, 'Tag', 'console').Value, newline);
-tc.verifySubstring(log, 'Loudness_ISO532_1 on tone_stereo.wav: kept from the last run');
+tc.verifySubstring(log, 'Loudness_ISO532_1 on tone_stereo_1s.wav: kept from the last run');
 tc.verifySubstring(findobj(fig, 'Tag', 'status').Text, '1 kept from the last run');
-tc.verifyEqual(il_value(fig, 'tone_stereo.wav', 'Loudness_ISO532_1', 'Nmean'), v1);
-tc.verifyNotEmpty(il_value(fig, 'tone_stereo.wav', 'Roughness_Daniel1997', 'Rmean'));
+tc.verifyEqual(il_value(fig, 'tone_stereo_1s.wav', 'Loudness_ISO532_1', 'Nmean'), v1);
+tc.verifyNotEmpty(il_value(fig, 'tone_stereo_1s.wav', 'Roughness_Daniel1997', 'Rmean'));
 il_press(fig, 'run');                                 % nothing changed: nothing runs
 tc.verifySubstring(findobj(fig, 'Tag', 'status').Text, '2 kept from the last run');
 il_signal_dbfs(fig, 1, 104);                          % 10 dB more: every analysis again
 il_press(fig, 'run');
 tc.verifySubstring(findobj(fig, 'Tag', 'status').Text, 'Done');
 tc.verifyEmpty(strfind(findobj(fig, 'Tag', 'status').Text, 'kept'));
-tc.verifyGreaterThan(il_value(fig, 'tone_stereo.wav', 'Loudness_ISO532_1', 'Nmean'), v1);
+tc.verifyGreaterThan(il_value(fig, 'tone_stereo_1s.wav', 'Loudness_ISO532_1', 'Nmean'), v1);
 il_signal_channel(fig, 1, '1');                       % one channel instead of both
 il_press(fig, 'run');
 tc.verifyEmpty(strfind(findobj(fig, 'Tag', 'status').Text, 'kept'));
@@ -745,8 +748,7 @@ function test_waveform_and_spectrogram_keep_aligned_plot_areas(tc)
 % size of its boxes late, so the resizing is left to a look at the screen.
 fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 axw = findobj(w, 'Tag', 'waveform_axes');
 axs = findobj(w, 'Tag', 'spectrogram');
 for lim = {[0 3], [1 1.5]}
@@ -829,43 +831,81 @@ il_press(fig2, 'run');
 tc.verifySubstring(strjoin(findobj(fig2, 'Tag', 'console').Value, newline), 'No metrics');
 end
 
-function test_gui_results_plot_carries_the_playhead(tc)
-% The plot below the matrix, when it is against time, carries the playhead of
-% the waveform window: a click on it opens that window and moves both
-% playheads to the time clicked; a playhead moved in the waveform window
-% moves the one of the plot.
+function test_gui_player_sits_in_the_waveform_tab(tc)
+% The waveform, the sound level and the spectrogram of the signal on screen
+% sit in the Waveform tab of the main window; no other window holds them.
 fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_select_metrics(fig, {'Loudness_ISO532_1'});
-il_press(fig, 'run');
-pl = findobj(fig, 'Tag', 'overview_plot');
-ph = findall(pl, 'Tag', 'overview_playhead');           % kept out of the legend: findall
-tc.assertNumElements(ph, 1);
-tc.verifyEqual(ph.Value, 0);
-ax = findobj(pl, 'Type', 'axes');
-ax.ButtonDownFcn(ax, struct('IntersectionPoint', [1.5 0 0]));
-w = il_window('SQAT_GUI_waveform');
-tc.assertNumElements(w, 1);
-tc.verifyEqual(findobj(w, 'Tag', 'playhead').Value, 1.5, 'AbsTol', 1/48000);
-tc.verifyEqual(ph.Value, 1.5, 'AbsTol', 1/48000);
-axw = findobj(w, 'Tag', 'waveform_axes');
-axw.ButtonDownFcn(axw, struct('IntersectionPoint', [0.5 0 0]));
-tc.verifyEqual(ph.Value, 0.5, 'AbsTol', 1/48000);
+dock = findobj(fig, 'Tag', 'waveform_dock');
+tc.verifyNotEmpty(findobj(dock, 'Tag', 'wave_line'));
+tc.verifyNotEmpty(findobj(dock, 'Tag', 'spectrogram'));
+tc.verifyEmpty(findobj(fig, 'Tag', 'open_waveform'));
+tc.verifyEqual(findobj(fig, 'Type', 'uitab', 'Title', 'Waveform').Parent.SelectedTab.Title, 'Waveform');
+end
+
+function test_gui_sound_level_follows_the_weightings(tc)
+% The sound level below the waveform is Do_SLM of the signal on screen, with
+% the frequency weighting of the player and the time weighting above the
+% plot; its indicators follow the two exceedance percentages of the spinners.
+fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+[x, fs] = SQAT_GUI_load(tc.TestData.wav_mono, 94, 1);
+L = Do_SLM(x, fs, 'Z', 'f', 94);
+lbl = findobj(fig, 'Tag', 'level_indicators');
+tc.verifySubstring(lbl.Text, sprintf('LZeq %.1f', Get_Leq(L, fs)));
+tc.verifySubstring(lbl.Text, sprintf('LZF5 %.1f   LZF90 %.1f dB', get_exceeded_value(L, 5), get_exceeded_value(L, 90)));
+tc.verifySubstring(lbl.Text, sprintf('LZE %.1f', Get_Leq(L, fs) + 10*log10(numel(L) / fs)));
+il_set(fig, 'wave_weighting', 'A');
+il_set(fig, 'level_time_weighting', 's');
+L = Do_SLM(x, fs, 'A', 's', 94);
+tc.verifySubstring(lbl.Text, sprintf('LASmax %.1f', max(L)));
+tc.verifyEqual(findobj(fig, 'Tag', 'level_axes').Title.String, 'Sound pressure level (A-weighted, Slow)');
+cbs = findall(findobj(fig, 'Tag', 'spectrogram').Parent, 'Type', 'colorbar');   % one colour bar, relabelled
+tc.assertNumElements(cbs, 1);
+tc.verifySubstring(cbs.Label.String, 'A-weighted');
+il_set(fig, 'level_percentile_1', 10);
+il_set(fig, 'level_percentile_2', 50);
+tc.verifySubstring(lbl.Text, sprintf('LAS10 %.1f   LAS50 %.1f dB', get_exceeded_value(L, 10), get_exceeded_value(L, 50)));
+end
+
+function test_gui_saves_the_three_plots_of_the_waveform_tab(tc)
+% Save plots writes the spectrogram, the waveform and the sound level, one
+% file each, with the name chosen and a suffix per plot.
+fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+setappdata(fig, 'sqat_next_file', fullfile(tc.TestData.dir_tmp, 'plots.png'));
+il_press(fig, 'save_wave_plots');
+for name = {'spectrogram', 'waveform', 'level'}
+    tc.verifyTrue(isfile(fullfile(tc.TestData.dir_tmp, ['plots_' name{1} '.png'])), name{1});
+end
+end
+
+function test_gui_draw_filter_ends_a_zoom_of_the_toolbar(tc)
+% A zoom chosen in the toolbar of the axes (the three dots) would take the
+% clicks of the filter tool: Draw filter turns it off, and pan with it.
+fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+z = zoom(fig);
+z.Enable = 'on';                                   % as the zoom button of the toolbar does
+bt = findobj(fig, 'Tag', 'draw_box');
+bt.Value = true; bt.ValueChangedFcn(bt, []);
+tc.verifyEqual(char(zoom(fig).Enable), 'off');
+pan(fig, 'on');
+bt.Value = false; bt.ValueChangedFcn(bt, []);
+bt.Value = true; bt.ValueChangedFcn(bt, []);
+tc.verifyEqual(char(pan(fig).Enable), 'off');
 end
 
 function test_gui_space_plays_from_the_main_window(tc)
-% The space bar in the main window opens the waveform window when it is
-% closed and starts the playback; a second press pauses it. Needs an audio
-% output.
+% The space bar in the main window starts the player of the Waveform tab; a
+% second press pauses it. Needs an audio output.
 il_needs_audio(tc);
 fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 fig.KeyPressFcn(fig, struct('Key', 'space'));
-w = il_window('SQAT_GUI_waveform');
-tc.assertNumElements(w, 1);
 log = strjoin(findobj(fig, 'Tag', 'console').Value, newline);
 tc.assumeTrue(contains(log, 'Playing'), 'no audio output on this machine');
-b = findobj(w, 'Tag', 'play');
+b = findobj(fig, 'Tag', 'play');
 tc.verifyEqual(b.Text, 'Pause');
 pause(0.4);
 fig.KeyPressFcn(fig, struct('Key', 'space'));
@@ -873,18 +913,35 @@ tc.verifyEqual(b.Text, 'Play');
 end
 
 function test_gui_add_metric_adds_an_analysis_with_its_defaults(tc)
-% The Add metric menu appends an analysis of the chosen metric, with the
-% defaults of the catalogue and the next number, and goes back to its prompt.
+% Add metrics opens a list of the metrics: a tick adds one analysis, + and -
+% change the count, and OK appends them in the order of the list, each with
+% the defaults of the catalogue and the next number; Cancel adds nothing.
 fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-dd = findobj(fig, 'Tag', 'add_metric');
-tc.verifyEqual(dd.Value, '');
-dd.Value = 'Roughness_Daniel1997';
-dd.ValueChangedFcn(dd, []);
-tc.verifyEqual(dd.Value, '');
-tc.verifyEqual(findobj(fig, 'Tag', 'analysis_metric_2').Value, 'Roughness_Daniel1997');
-tc.verifyEqual(findobj(fig, 'Tag', 'analysis_number_2').Text, '#2');
-tc.verifyEqual(findobj(fig, 'Tag', 'run').Text, ['Run 1 signal ' char(215) ' 2 analyses']);
+il_press(fig, 'add_metric');
+d = findall(groot, 'Type', 'figure', 'Tag', 'SQAT_GUI_metric_picker');
+tc.assertNumElements(d, 1);
+tick = findobj(d, 'Tag', 'picker_tick_Roughness_Daniel1997');
+tick.Value = true;
+tick.ValueChangedFcn(tick, []);
+tc.verifyEqual(findobj(d, 'Tag', 'picker_count_Roughness_Daniel1997').Text, '1x');
+il_press(d, 'picker_more_Sharpness_DIN45692');
+il_press(d, 'picker_more_Sharpness_DIN45692');
+il_press(d, 'picker_more_Sharpness_DIN45692');
+il_press(d, 'picker_less_Sharpness_DIN45692');
+tc.verifyEqual(findobj(d, 'Tag', 'picker_count_Sharpness_DIN45692').Text, '2x');
+tc.verifyTrue(findobj(d, 'Tag', 'picker_tick_Sharpness_DIN45692').Value);
+il_press(d, 'picker_ok');
+tc.verifyFalse(isvalid(d));
+ids = arrayfun(@(k) findobj(fig, 'Tag', sprintf('analysis_metric_%d', k)).Value, 2:4, 'UniformOutput', false);
+tc.verifyEqual(sort(ids), sort({'Roughness_Daniel1997', 'Sharpness_DIN45692', 'Sharpness_DIN45692'}));
+tc.verifyEqual(findobj(fig, 'Tag', 'analysis_number_4').Text, '#4');
+tc.verifyEqual(findobj(fig, 'Tag', 'run').Text, ['Run 1 signal ' char(215) ' 4 analyses']);
+il_press(fig, 'add_metric');
+d = findall(groot, 'Type', 'figure', 'Tag', 'SQAT_GUI_metric_picker');
+il_press(d, 'picker_more_Roughness_Daniel1997');
+il_press(d, 'picker_cancel');
+tc.verifyEqual(findobj(fig, 'Tag', 'run').Text, ['Run 1 signal ' char(215) ' 4 analyses']);
 end
 
 function test_gui_compares_one_metric_with_two_sets_of_parameters(tc)
@@ -1106,8 +1163,8 @@ il_press(fig, 'open_graphs');
 il_set(il_window('SQAT_GUI_graphs'), 'graph_analysis', 'roughness');
 ax = findobj(il_window('SQAT_GUI_graphs'), 'Type', 'axes');
 y = findobj(ax, 'Type', 'line').YData;
-tc.assumeLessThan(max(y) - min(y), 1e-3 * mean(y), ...   % the premise: nearly constant (on Linux the
-    'the roughness of this signal is not constant within 0.1 % here');   % FFT rounding leaves 0.18 %)
+tc.assumeLessThan(max(y) - min(y), 5e-3 * mean(y), ...   % the premise: nearly constant (on Linux the
+    'the roughness of this signal is not constant within 0.5 % here');   % FFT rounding leaves 0.18 %)
 tc.verifyGreaterThanOrEqual(diff(ax.YLim), 0.09 * mean(y));
 tc.verifyTrue(ax.YLim(1) <= min(y) && ax.YLim(2) >= max(y));
 end
@@ -1247,7 +1304,7 @@ function test_gui_graphs_choose_the_channel_of_a_binaural_analysis(tc)
 % For ECMA-418-2 loudness on All, the graphs window offers channels 1, 2,
 % Binaural and All in one row, and the curve of channel 2 and of Binaural
 % equals the one of a direct call.
-fig = SQAT_GUI({tc.TestData.wav_stereo}, 'Visible', 'off');
+fig = SQAT_GUI({tc.TestData.wav_stereo_1s}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Loudness_ECMA418_2'});
 il_signal_channel(fig, 1, 'All');
@@ -1258,7 +1315,7 @@ dc = findobj(g, 'Tag', 'graph_channel_1');
 tc.verifyEqual(dc.Items, {'1','2','Binaural','All'});
 tc.verifyTrue(all(arrayfun(@(h) h.Layout.Row, findobj(g, 'Tag', 'graph_channels').Children) == 1));   % one row at the first opening
 il_set(g, 'graph_analysis', 'loudness');
-ref = audioread(tc.TestData.wav_stereo); fs = tc.TestData.fs;
+ref = audioread(tc.TestData.wav_stereo_1s); fs = tc.TestData.fs;
 [~, rb] = evalc('Loudness_ECMA418_2(ref, fs, ''free-frontal'', 0.304, false)');
 il_set(g, 'graph_channel_1', '2');
 tc.verifyEqual(findobj(g, 'Type', 'line').YData(:), rb.loudnessTDep(:, 2));
@@ -1328,7 +1385,7 @@ end
 function test_gui_graphs_compare_a_mono_and_a_stereo_signal(tc)
 % each signal has its own channel choice: the mono against channel 1, channel 2,
 % the binaural result or every channel of the stereo
-fig = SQAT_GUI({tc.TestData.wav_mono, tc.TestData.wav_stereo}, 'Visible', 'off');
+fig = SQAT_GUI({tc.TestData.wav_mono_1s, tc.TestData.wav_stereo_1s}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Loudness_ECMA418_2'});
 il_signal_channel(fig, 2, 'All');
@@ -1347,7 +1404,7 @@ tc.verifyEqual(legend_of(), {'Signal #1, ch1', 'Signal #2, ch1'});
 il_set(g, 'graph_channel_2', '2');
 tc.verifyEqual(legend_of(), {'Signal #1, ch1', 'Signal #2, ch2'});
 tc.verifyFalse(contains(findobj(g, 'Type', 'axes').Title.String, 'channel'));   % the legend says it
-x2 = audioread(tc.TestData.wav_stereo); fs = tc.TestData.fs;
+x2 = audioread(tc.TestData.wav_stereo_1s); fs = tc.TestData.fs;
 [~, r2] = evalc('Loudness_ECMA418_2(x2, fs, ''free-frontal'', 0.304, false)');
 lines = findobj(g, 'Type', 'line');
 tc.verifyEqual(lines(strcmp({lines.DisplayName}, 'Signal #2, ch2')).YData(:), r2.loudnessTDep(:, 2));
@@ -1417,8 +1474,7 @@ c = load('cmap_inferno.txt');
 tc.verifySize(c, [256 3]);
 fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-ax = findobj(il_window('SQAT_GUI_waveform'), 'Tag', 'spectrogram');
+ax = findobj(fig, 'Tag', 'spectrogram');
 tc.verifyEqual(ax.Colormap, c);
 end
 
@@ -1429,10 +1485,9 @@ function test_waveform_window_shows_the_signal_and_follows_playback(tc)
 il_needs_audio(tc);
 fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 tc.verifyNumElements(w, 1);
-ln = findobj(w, 'Type', 'line');
+ln = findobj(w, 'Tag', 'wave_line');
 tc.verifyNumElements(ln, 1);
 tc.verifyEqual(ln.YData(:), audioread(tc.TestData.wav_mono));   % calibrated at 94 dBFS
 ph = findobj(w, 'Tag', 'playhead');
@@ -1460,8 +1515,7 @@ function test_waveform_window_has_the_spectrogram(tc)
 % drawn on it, and the A weighting keeps the colour limits.
 fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 ax = findobj(w, 'Tag', 'spectrogram');
 tc.assertNumElements(ax, 1);
 tc.verifyEqual(ax.Colormap, load('cmap_inferno.txt'));
@@ -1484,8 +1538,7 @@ function test_waveform_has_a_tab_per_signal(tc)
 % has one tab per channel), and follow the list of signals
 fig = SQAT_GUI({tc.TestData.wav_tone, tc.TestData.wav_stereo, tc.TestData.wav_mono}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 tg = findobj(w, 'Tag', 'wave_tabs');
 tc.assertNumElements(tg, 1);
 titles = @() arrayfun(@(t) t.Title, tg.Children(:)', 'UniformOutput', false);
@@ -1493,16 +1546,16 @@ tc.verifyEqual(titles(), {'#1 tone_1k_60dB.wav', '#2 tone_stereo.wav ch1', '#2 t
     '#3 tone_mono.wav'});
 tc.verifyEqual(tg.SelectedTab, tg.Children(1));
 il_pick_tab(tg, 3);                                        % channel 2 of the stereo
-tc.verifySubstring(w.Name, 'tone_stereo.wav, channel 2');
+tc.verifySubstring(findobj(w, 'Tag', 'waveform_axes').Title.String, 'tone_stereo.wav, channel 2');
 ref = audioread(tc.TestData.wav_stereo);
 tc.verifyEqual(findobj(w, 'Tag', 'waveform_axes').Children(end).YData(:), ref(:, 2));
 tc.verifyEqual(char(findobj(fig, 'Tag', 'signal_name_2').FontWeight), 'bold');   % the list follows
 il_pick_tab(tg, 2);                                        % channel 1 of the same signal
-tc.verifySubstring(w.Name, 'tone_stereo.wav, channel 1');
+tc.verifySubstring(findobj(w, 'Tag', 'waveform_axes').Title.String, 'tone_stereo.wav, channel 1');
 tc.verifyEqual(findobj(w, 'Tag', 'waveform_axes').Children(end).YData(:), ref(:, 1));
 il_activate_signal(fig, 3);                                % and the tabs follow the list
 tc.verifyEqual(tg.SelectedTab.Title, '#3 tone_mono.wav');
-tc.verifySubstring(w.Name, 'tone_mono');
+tc.verifySubstring(findobj(w, 'Tag', 'waveform_axes').Title.String, 'tone_mono');
 il_activate_signal(fig, 2);                                % back to the stereo: the channel last chosen
 tc.verifyEqual(tg.SelectedTab.Title, '#2 tone_stereo.wav ch1');
 il_remove_signal(fig, 1);
@@ -1517,8 +1570,7 @@ function test_waveform_space_starts_and_pauses_playback(tc)
 il_needs_audio(tc);
 fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 b = findobj(w, 'Tag', 'play');
 w.KeyPressFcn(w, struct('Key', 'a'));                      % another key does nothing
 tc.verifyEqual(b.Text, 'Play');
@@ -1544,8 +1596,7 @@ function test_waveform_tests_play_in_silence(tc)
 % the tests of the waveform window start the player, and must not be heard
 fig = SQAT_GUI({tc.TestData.wav_two}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 audio = getappdata(w, 'sqat_audio');
 info = getappdata(w, 'sqat_play');
 tc.assertGreaterThan(max(abs(audio())), 0.05, 'the file itself is silent');
@@ -1563,8 +1614,7 @@ function test_waveform_click_moves_the_playhead(tc)
 % do not take the click.
 fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 ph = findobj(w, 'Tag', 'playhead'); ph2 = findobj(w, 'Tag', 'playhead_spectrogram');
 ax = findobj(w, 'Tag', 'waveform_axes'); axs = findobj(w, 'Tag', 'spectrogram');
 ax.ButtonDownFcn(ax, struct('IntersectionPoint', [1.5 0 0]));
@@ -1586,8 +1636,7 @@ function test_waveform_play_starts_where_the_click_was_and_stop_goes_back(tc)
 il_needs_audio(tc);
 fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 ph = findobj(w, 'Tag', 'playhead');
 ax = findobj(w, 'Tag', 'waveform_axes');
 info = getappdata(w, 'sqat_play');
@@ -1617,12 +1666,11 @@ end
 function test_waveform_loops_by_default(tc)
 % The loop is on by default: a short file keeps playing past its end until
 % Stop. With the loop off the playback ends at the end of the file and the
-% playhead goes back to 0. Needs an audio output.
-il_needs_audio(tc);
+% playhead goes back to 0. Needs an audio output that plays in real time.
+il_needs_realtime_audio(tc);
 fig = SQAT_GUI({tc.TestData.wav_short}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 lp = findobj(w, 'Tag', 'loop');
 tc.verifyTrue(lp.Value, 'the loop must be on by default');
 b = findobj(w, 'Tag', 'play');
@@ -1645,12 +1693,11 @@ end
 
 function test_waveform_box_modes(tc)
 % Draw filter with two clicks on the spectrogram draws a box from opposite
-% corners, in any order, and disarms the tool; the box modes are loop only
-% (the default, the sound unchanged), isolate and remove.
+% corners, in any order, and disarms the tool; the box modes are isolate (the
+% default), remove and loop only (the sound unchanged).
 fig = SQAT_GUI({tc.TestData.wav_two}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 axs = findobj(w, 'Tag', 'spectrogram');
 ph = findobj(w, 'Tag', 'playhead');
 audio = getappdata(w, 'sqat_audio');
@@ -1669,11 +1716,12 @@ tc.assertNumElements(box, 1);
 tc.verifyEqual([min(box.XData) max(box.XData)], [0.5 2.5], 'AbsTol', 1e-9);
 tc.verifyEqual([min(box.YData) max(box.YData)], [1500 2500], 'AbsTol', 1e-9);
 tc.verifyFalse(bt.Value, 'the box tool stays armed');
-% by default what is inside only plays: the sound is not changed
+% by default only what is inside the box plays
 md = findobj(w, 'Tag', 'box_mode');
 tc.verifyEqual(md.ItemsData, {'loop', 'isolate', 'remove'});
 tc.verifyEqual(md.Items, {'Filter: loop only', 'Filter: isolate', 'Filter: remove'});
-tc.verifyEqual(md.Value, 'loop');
+tc.verifyEqual(md.Value, 'isolate');
+il_set(w, 'box_mode', 'loop');                            % loop only: the sound is not changed
 tc.verifyEqual(audio(), ref);
 mid = round(1.2*fs):round(1.8*fs); early = 1:round(0.3*fs);
 % remove: what is inside goes
@@ -1707,8 +1755,7 @@ function test_waveform_box_can_be_dragged(tc)
 % as the first of two clicks.
 fig = SQAT_GUI({tc.TestData.wav_two}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 axs = findobj(w, 'Tag', 'spectrogram');
 bt = findobj(w, 'Tag', 'draw_box');
 bt.Value = true; bt.ValueChangedFcn(bt, []);
@@ -1744,8 +1791,7 @@ function test_waveform_loops_inside_the_box(tc)
 il_needs_audio(tc);
 fig = SQAT_GUI({tc.TestData.wav_two}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 axs = findobj(w, 'Tag', 'spectrogram');
 ph = findobj(w, 'Tag', 'playhead');
 b = findobj(w, 'Tag', 'play');
@@ -1778,14 +1824,14 @@ end
 
 function test_waveform_box_loop_is_left_and_entered_by_clicks(tc)
 % During the playback, a box drawn with the loop on takes the playback into
-% it; a click outside leaves the loop and plays on from there, a click inside
-% enters it again, the loop off plays the box once, and a box drawn after a
-% pause takes the next play to its start. Needs an audio output.
+% it; a click after it leaves the loop and plays on from there, a click inside
+% enters it again, a click before it plays on into it and stays, the loop off
+% plays the box once, and a box drawn after a pause takes the next play to its
+% start. Needs an audio output.
 il_needs_audio(tc);
 fig = SQAT_GUI({tc.TestData.wav_two}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 axs = findobj(w, 'Tag', 'spectrogram'); axw = findobj(w, 'Tag', 'waveform_axes');
 ph = findobj(w, 'Tag', 'playhead');
 b = findobj(w, 'Tag', 'play');
@@ -1817,6 +1863,12 @@ tc.verifyTrue(info().box_loop);
 tc.verifyEqual(info().sample, round(1.2*fs) + 1);
 il_wait_until(@() ph.Value > 1.19 && ph.Value < 1.5);
 tc.verifyTrue(il_stays_between(ph, 0.99, 1.41, 1.5), 'the playhead left the box');
+% a click before the box plays on into it, and the loop holds it there
+ax_click(axw, 0.6);
+tc.verifyTrue(info().box_loop);
+tc.verifyEqual(info().sample, round(0.6*fs) + 1);
+il_wait_until(@() ph.Value > 1.05 && ph.Value < 1.5);
+tc.verifyTrue(il_stays_between(ph, 0.99, 1.41, 1.5), 'the play ran past the box');
 % the loop tick off: the play ends where the box ends
 lp = findobj(w, 'Tag', 'loop');
 lp.Value = false; lp.ValueChangedFcn(lp, []);
@@ -1843,8 +1895,7 @@ function test_waveform_weighting_filters_the_playback_and_the_spectrogram(tc)
 % gives the file back as it is.
 fig = SQAT_GUI({tc.TestData.wav_two}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 wd = findobj(w, 'Tag', 'wave_weighting');
 tc.verifyEqual(wd.Items, {'Z', 'A', 'C'});
 tc.verifyEqual(wd.Value, 'Z');
@@ -1858,10 +1909,10 @@ tc.verifyEqual(audio(), SQAT_GUI_weight(ref, fs, 'A'), 'AbsTol', 1e-12);
 sf = findobj(findobj(w, 'Tag', 'spectrogram'), 'Type', 'surface');
 tc.verifyEqual(max(sf.CData(abs(sf.YData - 500) < 30, :), [], 'all') - level_z, ...
     SQAT_GUI_weight_curve(500, fs, 'A'), 'AbsTol', 0.6);      % the bin nearest 500 Hz is within 1/2 bin
-tc.verifyEqual(findobj(w, 'Tag', 'spectrogram').Colorbar.Label.String, 'A-weighted sound pressure level (dB(A))');
+tc.verifyEqual(findobj(w, 'Tag', 'spectrogram').Colorbar.Label.String, 'A-weighted sound pressure level (dBA)');
 il_set(w, 'wave_weighting', 'C');
 tc.verifyEqual(audio(), SQAT_GUI_weight(ref, fs, 'C'), 'AbsTol', 1e-12);
-tc.verifyEqual(findobj(w, 'Tag', 'spectrogram').Colorbar.Label.String, 'C-weighted sound pressure level (dB(C))');
+tc.verifyEqual(findobj(w, 'Tag', 'spectrogram').Colorbar.Label.String, 'C-weighted sound pressure level (dBC)');
 il_set(w, 'wave_weighting', 'Z');
 tc.verifyEqual(audio(), ref);
 end
@@ -1872,8 +1923,7 @@ function test_waveform_spectrogram_options(tc)
 % spinner limited to 6 to 16.
 fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 wd = findobj(w, 'Tag', 'spec_window');
 tc.verifyEqual(wd.ItemsData, {'hann', 'hamming', 'rect', 'blackmanharris'});
 tc.verifyEqual(wd.Value, 'hann');
@@ -1918,8 +1968,7 @@ function test_waveform_spectrogram_takes_a_window_from_a_file(tc)
 % and a second import replaces the first in the menu.
 fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 surf = @() findobj(findobj(w, 'Tag', 'spectrogram'), 'Type', 'surface');
 c_hann = surf().CData;
 wd = findobj(w, 'Tag', 'spec_window');
@@ -1962,8 +2011,7 @@ function test_waveform_enhanced_stft_switch(tc)
 % degree, overlap and import controls and changes the map.
 fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 sw = findobj(w, 'Tag', 'spec_enhanced');
 tc.verifyEqual(sw.Value, 'Off');
 surf = @() findobj(findobj(w, 'Tag', 'spectrogram'), 'Type', 'surface');
@@ -1999,8 +2047,7 @@ function test_enhanced_stft_zoom_recomputes(tc)
 % a zoom on the enhanced map recomputes the excerpt with finer columns; zooming out restores the full map
 fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 il_set(w, 'spec_enhanced', 'On');
 ax = findobj(w, 'Tag', 'spectrogram');
 surf = @() findobj(ax, 'Type', 'surface');
@@ -2029,8 +2076,7 @@ function test_enhanced_stft_options_keep_the_zoom(tc)
 % weighting only adds its curve to each row
 fig = SQAT_GUI({tc.TestData.wav_two}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 il_set(w, 'spec_enhanced', 'On');
 ax = findobj(w, 'Tag', 'spectrogram');
 surf = @() findobj(ax, 'Type', 'surface');
@@ -2067,8 +2113,7 @@ function test_enhanced_stft_whole_file_reuses_the_full_map(tc)
 % computing it again.
 fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 il_set(w, 'spec_enhanced', 'On');
 ax = findobj(w, 'Tag', 'spectrogram');
 surf = @() findobj(ax, 'Type', 'surface');
@@ -2091,8 +2136,7 @@ function test_spectrogram_title_gives_the_frequency_resolution(tc)
 % overlap and the frequency resolution fs/N, as Gil asked (30.09.2026).
 fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-ax = findobj(il_window('SQAT_GUI_waveform'), 'Tag', 'spectrogram');
+ax = findobj(fig, 'Tag', 'spectrogram');
 t = ax.Title.String;
 n = sscanf(regexp(t, '\d+ points', 'match', 'once'), '%d');
 tc.verifySubstring(t, sprintf('%cf %.1f Hz', 916, tc.TestData.fs / n));
@@ -2103,8 +2147,7 @@ function test_waveform_and_spectrogram_share_the_time_axis(tc)
 % a new signal or tab goes back to the whole file; the frequency stays apart
 fig = SQAT_GUI({tc.TestData.wav_tone, tc.TestData.wav_stereo}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 axw = findobj(w, 'Tag', 'waveform_axes');
 axs = findobj(w, 'Tag', 'spectrogram');
 both = @() [axw.XLim; axs.XLim];
@@ -2137,8 +2180,7 @@ wav = fullfile(tc.TestData.dir_tmp, 'long_45s.wav');
 audiowrite(wav, 0.1*sin(2*pi*1000*(0:1/fs:45-1/fs)'), fs, 'BitsPerSample', 32);
 fig = SQAT_GUI({wav}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 axw = findobj(w, 'Tag', 'waveform_axes');
 ln = findobj(axw, 'Tag', 'wave_line');
 tc.verifyEqual(ln.XData(2) - ln.XData(1), 2/fs, 'AbsTol', 1e-12);   % 2.16e6 samples: one in two
@@ -2158,8 +2200,7 @@ function test_enhanced_stft_follows_a_zoom_of_the_waveform(tc)
 il_needs_display(tc);
 fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 il_set(w, 'spec_enhanced', 'On');
 axs = findobj(w, 'Tag', 'spectrogram');
 surf = @() findobj(axs, 'Type', 'surface');
@@ -2175,19 +2216,18 @@ tc.verifyEqual(surf().XData, x_full);
 end
 
 function test_enhanced_stft_colour_floor_moves_by_5_dB(tc)
-% The + and - buttons and the up and down arrows move the bottom of the colour
-% scale of the enhanced map by 5 dB, the floor survives a redraw, and the
-% range stays between 5 dB and 60 dB below the default. Needs a display.
+% The up and down arrows move the bottom of the colour scale of the enhanced
+% map by 5 dB, the floor survives a redraw, and the range stays between 5 dB
+% and 60 dB below the default. Needs a display.
 il_needs_display(tc);
 fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 il_set(w, 'spec_enhanced', 'On');
 ax = findobj(w, 'Tag', 'spectrogram');
 top = ax.CLim(2);
 tc.verifyEqual(ax.CLim, top + [-45 0], 'AbsTol', 1e-9);
-il_press(w, 'spec_black_more');
+w.KeyPressFcn(w, struct('Key', 'uparrow'));
 tc.verifyEqual(ax.CLim, top + [-40 0], 'AbsTol', 1e-9);
 w.KeyPressFcn(w, struct('Key', 'uparrow'));
 tc.verifyEqual(ax.CLim, top + [-35 0], 'AbsTol', 1e-9);
@@ -2195,11 +2235,11 @@ il_set(w, 'spec_enhanced_mode', 'sharp');                      % the floor stays
 tc.verifyEqual(ax.CLim(2) - ax.CLim(1), 35, 'AbsTol', 1e-9);
 il_set(w, 'spec_enhanced_mode', 'readable');
 w.KeyPressFcn(w, struct('Key', 'downarrow'));
-il_press(w, 'spec_black_less');
+w.KeyPressFcn(w, struct('Key', 'downarrow'));
 tc.verifyEqual(ax.CLim, top + [-45 0], 'AbsTol', 1e-9);
-for k = 1:20, il_press(w, 'spec_black_more'); end
+for k = 1:20, w.KeyPressFcn(w, struct('Key', 'uparrow')); end
 tc.verifyEqual(ax.CLim, top + [-5 0], 'AbsTol', 1e-9);         % at least 5 dB of colour
-for k = 1:30, il_press(w, 'spec_black_less'); end
+for k = 1:30, w.KeyPressFcn(w, struct('Key', 'downarrow')); end
 tc.verifyEqual(ax.CLim, top + [-105 0], 'AbsTol', 1e-9);       % at most 60 dB below the default
 end
 
@@ -2212,8 +2252,7 @@ il_needs_display(tc);
 il_use_pool(tc);
 fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 il_set(w, 'spec_enhanced', 'On');
 ax = findobj(w, 'Tag', 'spectrogram');
 surf = @() findobj(ax, 'Type', 'surface');
@@ -2244,8 +2283,7 @@ wav = fullfile(tc.TestData.dir_tmp, 'long_tone.wav');
 audiowrite(wav, 0.1*sin(2*pi*1000*t), fs, 'BitsPerSample', 32);
 fig = SQAT_GUI({wav}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 il_set(w, 'spec_enhanced', 'On');
 ax = findobj(w, 'Tag', 'spectrogram');
 surf = @() findobj(ax, 'Type', 'surface');
@@ -2277,17 +2315,16 @@ il_use_pool(tc);
 fig = SQAT_GUI({tc.TestData.wav_tone, tc.TestData.wav_two}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 il_activate_signal(fig, 1);
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
+w = fig;
 il_set(w, 'spec_enhanced', 'On');
 il_activate_signal(fig, 2);
-tc.verifySubstring(w.Name, 'two_tones');
+tc.verifySubstring(findobj(w, 'Tag', 'waveform_axes').Title.String, 'two_tones');
 ax = findobj(w, 'Tag', 'spectrogram');
 surf = @() findobj(ax, 'Type', 'surface');
 il_wait_until(@() ~isempty(surf()), 60);
 tc.assertNotEmpty(surf());
 pause(3);                                                      % time for a late map of the tone to arrive
-tc.verifySubstring(w.Name, 'two_tones');
+tc.verifySubstring(findobj(w, 'Tag', 'waveform_axes').Title.String, 'two_tones');
 [x, fs] = SQAT_GUI_load(tc.TestData.wav_two, 94, 1);
 [~, f, L] = SQAT_GUI_enhanced_stft(x, fs, 'readable');
 keep = f >= 20;
@@ -2295,29 +2332,18 @@ tc.verifyEqual(surf().CData, double(single(L(keep, :))) + SQAT_GUI_weight_curve(
 end
 
 function test_waveform_close_while_a_map_is_computed(tc)
-% Closing the waveform window while enhanced maps are computed leaves no timer
-% running and logs no error, and the window opens again and draws its map.
-% Needs a display.
+% Closing the main window while enhanced maps are computed leaves no timer
+% running. Needs a display.
 il_needs_display(tc);
-% closing the window with maps queued leaves no timer running and logs no error
 il_use_pool(tc);
+timers_before = numel(timerfindall);                           % before the window: it starts its own
 fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
-tc.addTeardown(@() delete(fig));
-timers_before = numel(timerfindall);
-il_press(fig, 'open_waveform');
-w = il_window('SQAT_GUI_waveform');
-il_set(w, 'spec_enhanced', 'On');
-w.CloseRequestFcn(w, []);
-tc.verifyFalse(isvalid(w));
+tc.addTeardown(@() delete(fig(isvalid(fig))));
+il_set(fig, 'spec_enhanced', 'On');
+fig.CloseRequestFcn(fig, []);
+tc.verifyFalse(isvalid(fig));
 pause(5);                                                      % any map on its way arrives meanwhile
 tc.verifyEqual(numel(timerfindall), timers_before);
-tc.verifyEmpty(strfind(strjoin(findobj(fig, 'Tag', 'console').Value, newline), 'ERROR'));
-il_press(fig, 'open_waveform');                                % and the window opens again
-w = il_window('SQAT_GUI_waveform');
-il_set(w, 'spec_enhanced', 'On');
-surf = @() findobj(findobj(w, 'Tag', 'spectrogram'), 'Type', 'surface');
-il_wait_until(@() ~isempty(surf()), 60);
-tc.verifyNotEmpty(surf());
 end
 
 %% Helpers -----------------------------------------------------------------
@@ -2340,17 +2366,43 @@ end
 end
 
 function il_needs_audio(tc)
-% the player needs an audio output; the CI runner has none ("No audio
-% outputs were found"), so the playback never starts there
-tc.assumeFalse(strcmp(getenv('CI'), 'true'), 'needs an audio output, which the CI runner has not');
+% the player needs an audio output; a bare CI runner has none ("No audio
+% outputs were found"), so the playback never starts there. A virtual one
+% (a PulseAudio null sink) is enough
+try
+    n = numel(audiodevinfo().output);
+catch
+    n = 0;
+end
+tc.assumeGreaterThan(n, 0, 'needs an audio output, and this machine has none');
+end
+
+function il_needs_realtime_audio(tc)
+% the end of a file needs an output that plays in real time: the virtual one
+% of the CI runner (a PulseAudio null sink) fills its buffer and stalls
+% (02.10.2026), so a 0.2 s sound must end within 1 s here
+il_needs_audio(tc);
+persistent ok
+if isempty(ok)
+    fs = 48000;
+    p = audioplayer(zeros(round(0.2 * fs), 1), fs);
+    play(p);
+    t0 = tic;
+    while isplaying(p) && toc(t0) < 1
+        pause(0.05);
+    end
+    ok = ~isplaying(p);
+    stop(p);
+end
+tc.assumeTrue(ok, 'the audio output does not play in real time here');
 end
 
 function il_needs_display(tc)
-% the enhanced spectrogram of the waveform window recomputes on timers and
-% on the background pool; on the CI runner, with no display, these tests
-% waited forever (30.09.2026), so they run only where there is one
-tc.assumeFalse(strcmp(getenv('CI'), 'true'), ...
-    'needs a display: the timers of the enhanced spectrogram do not fire on the CI runner');
+% the enhanced spectrogram recomputes on timers and on the background pool;
+% on a Linux runner with no display these tests waited forever (30.09.2026),
+% so there they need one (a virtual one, Xvfb, is enough)
+tc.assumeFalse(isunix && ~ismac && isempty(getenv('DISPLAY')), ...
+    'needs a display: the timers of the enhanced spectrogram do not fire without one');
 end
 
 function il_wait_until(cond, seconds)

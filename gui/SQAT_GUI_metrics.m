@@ -24,9 +24,10 @@ function metrics = SQAT_GUI_metrics
 %
 % Author: Sergio Aguirre and Gil Felix Greco, September 2026
 %
-% AI disclosure: code development in September 2026 assisted
-% by Claude Opus 5 (Anthropic). All codes were verified by
-% the authors.
+% AI disclosure: code development in September and October
+% 2026 assisted by Claude Opus 5, Claude Sonnet 5 and Claude
+% Opus 5.5 (Anthropic). All codes were verified by the
+% authors.
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Copyright statement: This file is part of the SQAT toolbox and is subject
@@ -54,7 +55,8 @@ metrics = struct('id', {}, 'label', {}, 'params', {}, 'run', {}, 'stereo', {});
 
 metrics(end+1) = il_entry('Do_SLM', 'Sound level (IEC 61672-1)', ...
     [il_choice('weight_freq', 'Frequency weighting', {'A', 'A'; 'C', 'C'; 'Z', 'Z'}, 'A'), ...
-     il_choice('weight_time', 'Time weighting', {'Fast', 'f'; 'Slow', 's'; 'Impulse', 'i'}, 'f')], ...
+     il_choice('weight_time', 'Time weighting', {'Fast', 'f'; 'Slow', 's'; 'Impulse', 'i'}, 'f'), ...
+     il_choice('tob_weight', 'One-third octave weighting', {'Z (bands)', 'Z'; 'A (bands)', 'A'; 'C (bands)', 'C'}, 'Z')], ...
     @il_sound_level);
 
 metrics(end+1) = il_entry('Loudness_ISO532_1', 'Loudness (ISO 532-1)', ...
@@ -120,8 +122,9 @@ function OUT = il_sound_level(x, fs, p, show)
 % the sound level meter of SQAT on a signal in Pa, as ex_sound_level_meter.m
 % uses it: the time-weighted level, its equivalent and maximum, the levels
 % exceeded 5 and 90 % of the time, the sound exposure level, and the
-% one-third octave levels (unweighted) of Do_OB13_ISO532_1. No minimum: the
-% time weighting starts from zero, so the first samples would give it
+% one-third octave levels of Do_OB13_ISO532_1 (each band the Leq of the
+% whole signal), after the weighting chosen for them (Z: none). No minimum:
+% the time weighting starts from zero, so the first samples would give it
 L = Do_SLM(x, fs, p.weight_freq, p.weight_time, 94);
 if show
     Do_SLM(x, fs, p.weight_freq, p.weight_time, 94);   % no output: the figure of Do_SLM
@@ -137,9 +140,31 @@ OUT.(['L' fw tw 'max']) = max(L);
 OUT.(['L' fw tw '5']) = get_exceeded_value(L, 5);
 OUT.(['L' fw tw '90']) = get_exceeded_value(L, 90);
 OUT.(['L' fw 'E']) = OUT.(['L' fw 'eq']) + 10*log10(numel(L) / fs);
+if ~strcmpi(il_tob_weight(p), 'Z')
+    [b, a] = Gen_weighting_filters(fs, p.tob_weight);
+    x = filter(b, a, x);
+end
 [bands, fc] = Do_OB13_ISO532_1(x, fs);
 OUT.TOB_freq = fc(:);
+OUT.level_unit = il_level_unit(fw);                % for the axis labels of the GUI
+OUT.TOB_unit = il_level_unit(il_tob_weight(p));
 OUT.TOB_level = 20*log10(rms(bands, 1)' / 2e-5);
+end
+
+function w = il_tob_weight(p)
+% the weighting of the one-third octave levels (Z in a session saved before it)
+w = 'Z';
+if isfield(p, 'tob_weight')
+    w = upper(p.tob_weight);
+end
+end
+
+function u = il_level_unit(w)
+% dB SPL unweighted, dBA and dBC weighted
+u = 'dB SPL';
+if ~strcmpi(w, 'Z')
+    u = ['dB' upper(w)];
+end
 end
 
 function e = il_entry(id, label, params, run)
