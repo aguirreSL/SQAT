@@ -559,6 +559,7 @@ tc.verifySubstring(v{1}, '(default)');
 v = S.Value(strcmp(S.Item, 'Analysis #1'));
 tc.verifySubstring(v{1}, 'Roughness_Daniel1997');
 tc.verifyTrue(any(strcmp(S.Item, 'SQAT version')));
+tc.verifyMatches(S.Value{strcmp(S.Item, 'SQAT version')}, '^v?\d');   % a release: v1.3, or 1.3 from citation.cff
 end
 
 function test_gui_exported_settings_list_what_ran(tc)
@@ -862,7 +863,7 @@ tc.verifySubstring(lbl.Text, sprintf('LASmax %.1f', max(L)));
 tc.verifyEqual(findobj(fig, 'Tag', 'level_axes').Title.String, 'Sound pressure level (A-weighted, Slow)');
 cbs = findall(findobj(fig, 'Tag', 'spectrogram').Parent, 'Type', 'colorbar');   % one colour bar, relabelled
 tc.assertNumElements(cbs, 1);
-tc.verifySubstring(cbs.Label.String, 'A-weighted');
+tc.verifyEqual(cbs.Label.String, 'SPL (dBA)');
 il_set(fig, 'level_percentile_1', 10);
 il_set(fig, 'level_percentile_2', 50);
 tc.verifySubstring(lbl.Text, sprintf('LAS10 %.1f   LAS50 %.1f dB', get_exceeded_value(L, 10), get_exceeded_value(L, 50)));
@@ -894,6 +895,28 @@ pan(fig, 'on');
 bt.Value = false; bt.ValueChangedFcn(bt, []);
 bt.Value = true; bt.ValueChangedFcn(bt, []);
 tc.verifyEqual(char(pan(fig).Enable), 'off');
+end
+
+function test_gui_overlaid_curves_stay_apart_past_seven_signals(tc)
+% Past the seven colours of the axes the curves change line style, so that
+% eight or more signals overlaid stay apart: the eighth takes the colour of
+% the first, dashed.
+wavs = arrayfun(@(k) fullfile(tc.TestData.dir_tmp, sprintf('copy_%d.wav', k)), 1:8, 'UniformOutput', false);
+for k = 1:8
+    copyfile(tc.TestData.wav_mono_1s, wavs{k});
+end
+fig = SQAT_GUI(wavs, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+il_select_metrics(fig, {'Do_SLM'});
+il_press(fig, 'run');
+g = il_window('SQAT_GUI_graphs');
+il_set(g, 'graph_analysis', 'tob_level');
+c = flipud(findobj(findobj(g, 'Type', 'axes'), 'Type', 'stair'));   % in the order drawn
+tc.assertNumElements(c, 8);
+tc.verifyEqual(c(8).Color, c(1).Color);
+tc.verifyEqual(char(c(1).LineStyle), '-');
+tc.verifyEqual(char(c(8).LineStyle), '--');
+tc.verifyEqual(numel(unique(arrayfun(@(h) [mat2str(h.Color) char(h.LineStyle)], c, 'UniformOutput', false))), 8);
 end
 
 function test_gui_space_plays_from_the_main_window(tc)
@@ -940,6 +963,13 @@ tc.verifyEqual(findobj(fig, 'Tag', 'run').Text, ['Run 1 signal ' char(215) ' 4 a
 il_press(fig, 'add_metric');
 d = findall(groot, 'Type', 'figure', 'Tag', 'SQAT_GUI_metric_picker');
 il_press(d, 'picker_more_Roughness_Daniel1997');
+il_press(d, 'picker_more_Roughness_Daniel1997');
+il_set(d, 'picker_all', true);                       % Tick all: every metric once, the 2x stays
+counts = findobj(d, '-regexp', 'Tag', '^picker_count_');
+tc.verifyTrue(all(~cellfun(@isempty, {counts.Text})));
+tc.verifyEqual(findobj(d, 'Tag', 'picker_count_Roughness_Daniel1997').Text, '2x');
+il_set(d, 'picker_all', false);                      % and none
+tc.verifyTrue(all(cellfun(@isempty, {counts.Text})));
 il_press(d, 'picker_cancel');
 tc.verifyEqual(findobj(fig, 'Tag', 'run').Text, ['Run 1 signal ' char(215) ' 4 analyses']);
 end
@@ -1526,7 +1556,7 @@ tc.assertNumElements(sf, 1);
 tc.verifyEqual(max(sf.CData(:)), 60, 'AbsTol', 1.5);
 [~, i_max] = max(max(sf.CData, [], 2));
 tc.verifyEqual(sf.YData(i_max), 1000, 'AbsTol', 48000/1024);
-tc.verifyEqual(ax.Colorbar.Label.String, 'Sound pressure level (dB SPL)');
+tc.verifyEqual(ax.Colorbar.Label.String, 'SPL (dB SPL)');
 tc.verifyNotEmpty(findobj(w, 'Tag', 'playhead_spectrogram'));
 cl = ax.CLim;
 il_set(w, 'wave_weighting', 'A');
@@ -1909,10 +1939,10 @@ tc.verifyEqual(audio(), SQAT_GUI_weight(ref, fs, 'A'), 'AbsTol', 1e-12);
 sf = findobj(findobj(w, 'Tag', 'spectrogram'), 'Type', 'surface');
 tc.verifyEqual(max(sf.CData(abs(sf.YData - 500) < 30, :), [], 'all') - level_z, ...
     SQAT_GUI_weight_curve(500, fs, 'A'), 'AbsTol', 0.6);      % the bin nearest 500 Hz is within 1/2 bin
-tc.verifyEqual(findobj(w, 'Tag', 'spectrogram').Colorbar.Label.String, 'A-weighted sound pressure level (dBA)');
+tc.verifyEqual(findobj(w, 'Tag', 'spectrogram').Colorbar.Label.String, 'SPL (dBA)');
 il_set(w, 'wave_weighting', 'C');
 tc.verifyEqual(audio(), SQAT_GUI_weight(ref, fs, 'C'), 'AbsTol', 1e-12);
-tc.verifyEqual(findobj(w, 'Tag', 'spectrogram').Colorbar.Label.String, 'C-weighted sound pressure level (dBC)');
+tc.verifyEqual(findobj(w, 'Tag', 'spectrogram').Colorbar.Label.String, 'SPL (dBC)');
 il_set(w, 'wave_weighting', 'Z');
 tc.verifyEqual(audio(), ref);
 end

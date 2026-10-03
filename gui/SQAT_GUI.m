@@ -2219,12 +2219,18 @@ end
         end
         ax = uiaxes(uigridlayout(parent, [1 1]));
         hold(ax, 'on');
+        colors = ax.ColorOrder;
+        styles = {'-', '--', ':', '-.'};
         for k = 1:numel(A)
+            % the colours of the axes, then again dashed, dotted and dash-dotted:
+            % from the eighth signal on no two curves look the same
+            look = {'Color', colors(mod(k - 1, size(colors, 1)) + 1, :), ...
+                    'LineStyle', styles{mod(floor((k - 1) / size(colors, 1)), numel(styles)) + 1}};
             if strcmp(A(k).id, 'tob_level')         % one level per band: a step across its width
                 e = A(k).x(:) * 2^(-1/6);
-                stairs(ax, [e; A(k).x(end) * 2^(1/6)], [A(k).y(:); A(k).y(end)]);
+                stairs(ax, [e; A(k).x(end) * 2^(1/6)], [A(k).y(:); A(k).y(end)], look{:});
             else
-                plot(ax, A(k).x, A(k).y);
+                plot(ax, A(k).x, A(k).y, look{:});
             end
         end
         hold(ax, 'off');
@@ -2606,11 +2612,7 @@ end
         if isempty(cb)
             cb = colorbar(ax_spec);
         end
-        if strcmp(weighting, 'Z')
-            cb.Label.String = 'Sound pressure level (dB SPL)';
-        else
-            cb.Label.String = sprintf('%s-weighted sound pressure level (dB%s)', weighting, weighting);
-        end
+        cb.Label.String = sprintf('SPL (%s)', il_level_unit(weighting));   % short: it fits the height of the plot
         il_fit_axes(ax_spec.Parent, ax_spec, 26);      % the time label only on the sound level, the plot at the bottom
         ylabel(ax_spec, 'Frequency (Hz)');
         if enhanced
@@ -3594,12 +3596,26 @@ end
 end
 
 function v = il_sqat_version()
-% the commit of the SQAT repository, when it is a git checkout
+% the release of SQAT: its tag (v1.3), or the tag and the commits since it in
+% a git checkout (v1.3 + 299 commits (db61b5c)); without git, the version of
+% citation.cff (a download of a release)
 root = fileparts(fileparts(mfilename('fullpath')));
-[status, out] = system(sprintf('git -C "%s" rev-parse --short HEAD', root));
-v = 'unknown (not a git checkout)';
-if status == 0
-    v = ['commit ' strtrim(out)];
+[status, out] = system(sprintf('git -C "%s" describe --tags --long --match "v*"', root));
+tok = regexp(strtrim(out), '^(.*)-(\d+)-g([0-9a-f]+)$', 'tokens', 'once');
+if status == 0 && ~isempty(tok)
+    v = tok{1};
+    if ~strcmp(tok{2}, '0')
+        v = sprintf('%s + %s commits (%s)', tok{1}, tok{2}, tok{3});
+    end
+    return
+end
+v = 'unknown';
+cff = fullfile(root, 'citation.cff');
+if isfile(cff)
+    k = regexp(fileread(cff), '(?m)^version:\s*(\S+)', 'tokens', 'once');
+    if ~isempty(k)
+        v = k{1};
+    end
 end
 end
 
