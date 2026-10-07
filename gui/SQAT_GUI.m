@@ -107,7 +107,8 @@ cal_help = ['A WAV file stores numbers between -1 and +1, with no unit. To read 
     'recording, or one recording per channel, calibrates each channel on its own.' newline newline ...
     '- Relative level: with no information, the rms of the file is set to a chosen level. The results ' ...
     'then only compare signals among themselves; they are not absolute levels.' newline newline ...
-    'Each method takes one level for all channels, or one level per channel (94 100 for a stereo file).'];
+    'A file with more than one channel takes one level for all its channels or, with Same for all ' ...
+    'channels unticked, one level (and one calibrator recording) per channel.'];
 active_idx = 0;                                       % the signal on screen in the player
 wave_ch_by_id = [];                                    % channel chosen by a tab of the waveform window, by signal number
 results = il_empty_results();
@@ -172,13 +173,16 @@ fig = uifigure('Name', 'SQAT: Sound Quality Analysis Toolbox', ...
 m_file = uimenu(fig, 'Text', 'File');
 uimenu(m_file, 'Text', 'Open session...', 'MenuSelectedFcn', @(~, ~) on_session('open'));
 uimenu(m_file, 'Text', 'Save session...', 'MenuSelectedFcn', @(~, ~) on_session('save'));
-main = uigridlayout(fig, [3 2]);
-main.RowHeight = {64, '1x', 30};                 % the logo as tall as the Actions panel beside it
+main = uigridlayout(fig, [3 2], 'Tag', 'main_grid');
+main.RowHeight = {70, '1x', 22};                 % the logo row: the 64 px of the Actions buttons and 6 px more below them; a thin status bar
 main.ColumnWidth = {600, '1x'};                  % the lists get the room, the console the rest
+main.RowSpacing = 4;                             % the lists and the plots go further down; the room under the Run button is
+                                                 % 10 px all the same (6 px of the logo row and these 4)
+main.Padding = [10 4 10 10];                     % [left bottom right top]
 
 top = uigridlayout(main, [1 2]);
 top.Layout.Row = 1; top.Layout.Column = 1;
-top.Padding = [20 0 0 0];                       % the logo a little in from the edge
+top.Padding = [20 6 0 0];                       % the logo a little in from the edge; 64 px tall, level with the buttons
 top.ColumnWidth = {84, '1x'};                   % the logo under the row height (1563 x 895 px)
 top.ColumnSpacing = 25;                         % from the logo to the title
 img_logo = uiimage(top, 'ImageSource', fullfile(dir_logos, 'logo_white.png'), 'Tag', 'logo', ...
@@ -186,20 +190,20 @@ img_logo = uiimage(top, 'ImageSource', fullfile(dir_logos, 'logo_white.png'), 'T
 uilabel(top, 'Text', 'Sound Quality Analysis Toolbox', 'FontSize', 26, 'FontWeight', 'bold', ...
     'HorizontalAlignment', 'left');             % right after the logo
 
-left = uigridlayout(main, [2 1]);
+left = uigridlayout(main, [2 1], 'Tag', 'lists_grid');
 left.Layout.Row = 2; left.Layout.Column = 1;
 left.Padding = [0 0 0 0];
 left.RowHeight = {'1x', '1x'};
-sig_box = uigridlayout(uipanel(left), [2 1]);          % a box around each list, to set them apart
+sig_box = uigridlayout(uipanel(left, 'Tag', 'signals_box'), [2 1]);   % a box around each list, to set them apart
 sig_box.RowHeight = {28, '1x'};
 sig_box.Padding = [6 6 6 6];
-ana_box = uigridlayout(uipanel(left), [2 1]);
+ana_box = uigridlayout(uipanel(left, 'Tag', 'analyses_box'), [2 1]);
 ana_box.RowHeight = {28, '1x'};
 ana_box.Padding = [6 6 6 6];
 sh = uigridlayout(sig_box, [1 3]);
 sh.Padding = [0 0 0 0];
 sh.ColumnWidth = {'1x', 100, 130};
-uilabel(sh, 'Text', '1   SIGNALS', 'FontWeight', 'bold', 'FontSize', 15);
+uilabel(sh, 'Text', 'SIGNALS', 'FontWeight', 'bold', 'FontSize', 15);
 lbl_files = uilabel(sh, 'Text', 'No files loaded', 'Tag', 'file_count', 'HorizontalAlignment', 'right');
 uibutton(sh, 'Text', 'Open WAV files...', 'Tag', 'load_files', 'ButtonPushedFcn', @on_load_files);
 signal_list = uigridlayout(sig_box, [1 6], 'Scrollable', 'on', 'Tag', 'signals_list');
@@ -209,7 +213,7 @@ signal_list.RowSpacing = 4;
 ah = uigridlayout(ana_box, [1 3]);
 ah.Padding = [0 0 0 0];
 ah.ColumnWidth = {'1x', 190, 100};
-uilabel(ah, 'Text', '2   ANALYSES', 'FontWeight', 'bold', 'FontSize', 15);
+uilabel(ah, 'Text', 'ANALYSES', 'FontWeight', 'bold', 'FontSize', 15);
 uibutton(ah, 'Text', '+ Add metrics...', 'Tag', 'add_metric', 'ButtonPushedFcn', @on_add_metric, ...
     'Tooltip', 'Opens the list of metrics: the ticked ones are added, each with its default parameters');
 uibutton(ah, 'Text', 'Copy last', 'Tag', 'add_analysis', 'ButtonPushedFcn', @on_add_analysis, ...
@@ -222,6 +226,14 @@ right = uigridlayout(main, [2 1]);
 right.Layout.Row = [1 2]; right.Layout.Column = 2;  % Actions up beside the logo, the results below
 right.Padding = [0 0 0 0];
 right.RowHeight = {64, '1x'};
+right.RowSpacing = 10;                              % the tabs start where the lists do: 64 + 10 = 70 + 4
+
+% the gap between the two lists, and the one between the lists and the tabs,
+% can be dragged to share the room otherwise (the pointer changes over them)
+splitter = struct('mode', '', 'from', [0 0], 'size', 0, 'total', 0);
+fig.WindowButtonDownFcn = @on_splitter_down;
+fig.WindowButtonMotionFcn = @on_splitter_motion;
+fig.WindowButtonUpFcn = @on_splitter_up;
 
 save_folder = pwd;                                     % the folder of the last save
 split_figures = false;                                 % one tab and one file per panel: no control for now
@@ -330,7 +342,7 @@ end
         if loaded(k).cal_set
             c = loaded(k).cal;
         end
-        SQAT_GUI_calibration_dialog(fig, loaded(k).name, c, cal_help, ...
+        SQAT_GUI_calibration_dialog(fig, loaded(k).name, loaded(k).nch, c, cal_help, ...
             @(method, level, calfile) set_calibration(k, method, level, calfile));
     end
 
@@ -1041,112 +1053,159 @@ end
     end
 
     function build_wave_view(parent)
-        % the tabs of the signals, the player, the options of the spectrogram and
-        % the plots, in one grid in the Waveform tab
-        wave_view = uigridlayout(parent, [4 1]);
-        wave_view.RowHeight = {26, 26, 26, '1x'};
+        % the tabs of the signals, the player and the plots, in one grid in the
+        % Waveform tab: the waveform, then the sound level and the spectrogram,
+        % each of these two with its own settings above it
+        wave_view = uigridlayout(parent, [3 1]);
+        wave_view.RowHeight = {26, 26, '1x'};
         wave_view.Padding = [4 4 4 4];
         uitabgroup(wave_view, 'Tag', 'wave_tabs', 'SelectionChangedFcn', @on_wave_tab, ...
             'Visible', 'off');                          % a tab per signal, shown once there is one
-        hw = uigridlayout(wave_view, [1 10]);
+        hw = uigridlayout(wave_view, [1 5]);            % the player, and the saving of the plots
         hw.Padding = [0 0 0 0];
-        hw.ColumnWidth = {70, 70, 55, 90, 95, 130, 70, 55, '1x', 100};   % narrow enough for the Waveform tab
+        hw.ColumnWidth = {70, 70, 55, '1x', 100};
         hw.ColumnSpacing = 6;
         btn_play = uibutton(hw, 'Text', 'Play', 'Tag', 'play', 'ButtonPushedFcn', @on_play, ...
             'Tooltip', 'Space plays and pauses; a click on the waveform or the spectrogram moves the playhead');
         uibutton(hw, 'Text', 'Stop', 'Tag', 'stop', 'ButtonPushedFcn', @on_stop);
         uicheckbox(hw, 'Text', 'Loop', 'Value', true, 'Tag', 'loop', 'ValueChangedFcn', @on_loop_changed, ...
             'Tooltip', 'Starts again at the end of the file, or of the filter box when there is one');
-        uibutton(hw, 'state', 'Text', 'Draw filter', 'Tag', 'draw_box', 'ValueChangedFcn', @on_draw_box, ...
-            'Tooltip', 'Drag a box on the spectrogram, or click two opposite corners');
-        uibutton(hw, 'Text', 'Clear filters', 'Tag', 'clear_boxes', 'ButtonPushedFcn', @on_clear_boxes);
-        uidropdown(hw, 'Items', {'Filter: loop only', 'Filter: isolate', 'Filter: remove'}, ...
-            'ItemsData', {'loop', 'isolate', 'remove'}, 'Value', 'isolate', 'Tag', 'box_mode', ...
-            'ValueChangedFcn', @on_processing_changed, ...
-            'Tooltip', ['Loop only: the sound is not changed, and the loop runs inside the box. ' ...
-                        'Isolate: only what is inside the box plays. Remove: what is inside the box is taken out.']);
-        uilabel(hw, 'Text', 'Weighting:', 'HorizontalAlignment', 'right');
-        uidropdown(hw, 'Items', {'Z', 'A', 'C'}, 'Value', 'Z', 'Tag', 'wave_weighting', ...
-            'ValueChangedFcn', @on_weighting_changed, ...
-            'Tooltip', 'Frequency weighting of the sound and of the spectrogram (IEC 61672-1)');
         uilabel(hw, 'Text', '');
         uibutton(hw, 'Text', 'Save plots...', 'Tag', 'save_wave_plots', 'ButtonPushedFcn', @on_save_wave_plots, ...
             'Tooltip', 'Saves the spectrogram, the waveform and the sound level, one file each, as PNG or PDF');
-        sw = uigridlayout(wave_view, [1 11]);
-        sw.Padding = [0 0 0 0];
-        sw.ColumnWidth = {50, 115, 70, 72, 52, 78, 52, 62, 70, 85, '1x'};   % the switch needs room for Off and On
-        sw.ColumnSpacing = 6;
-        uilabel(sw, 'Text', 'Window:', 'HorizontalAlignment', 'right');
-        uidropdown(sw, 'Items', {'Hann', 'Hamming', 'Rectangular', 'Blackman-Harris'}, ...
-            'ItemsData', {'hann', 'hamming', 'rect', 'blackmanharris'}, 'Value', 'hann', ...
-            'Tag', 'spec_window', 'ValueChangedFcn', @on_spec_option);
-        uibutton(sw, 'Text', 'Import...', 'Tag', 'import_window', 'ButtonPushedFcn', @on_import_window, ...
-            'Tooltip', 'A .txt, .csv, .dat or .mat file with the samples of the window');
-        uilabel(sw, 'Text', 'FFT degree:', 'HorizontalAlignment', 'right');
-        uispinner(sw, 'Value', 10, 'Limits', [6 16], 'Step', 1, 'Tag', 'spec_degree', ...
-            'RoundFractionalValues', 'on', 'ValueChangedFcn', @on_spec_option, ...
-            'Tooltip', 'The FFT has 2^degree points (6 to 16); use the arrows');
-        uilabel(sw, 'Text', 'Overlap (%):', 'HorizontalAlignment', 'right');
-        uispinner(sw, 'Value', 50, 'Limits', [0 95], 'Step', 5, 'Tag', 'spec_overlap', ...
-            'ValueChangedFcn', @on_spec_option, 'Tooltip', 'Overlap of the frames (0 to 95); use the arrows');
-        uilabel(sw, 'Text', 'Enhanced:', 'HorizontalAlignment', 'right', 'Tooltip', 'Enhanced STFT');
-        uiswitch(sw, 'slider', 'Items', {'Off', 'On'}, 'Value', 'Off', 'Tag', 'spec_enhanced', ...
-            'ValueChangedFcn', @on_spec_enhanced, ...
-            'Tooltip', ['Enhanced STFT (consensus): nine windows of 8 to 512 ms, reassigned and combined, ' ...
-                        'so that no window has to be chosen. It replaces the window, the FFT degree and the overlap.']);
-        uidropdown(sw, 'Items', {'Readable', 'Sharp'}, 'ItemsData', {'readable', 'sharp'}, 'Value', 'readable', ...
-            'Tag', 'spec_enhanced_mode', 'Enable', 'off', 'ValueChangedFcn', @on_spec_enhanced, ...
-            'Tooltip', 'Readable: smoothing of 4 ms and 1.45 % of the frequency, continuous lines. Sharp: 1 ms and 1 Hz, the thinnest lines.');
-        uilabel(sw, 'Text', '');
-        pg = uigridlayout(wave_view, [4 1]);                  % the plots, each with its own tools above it
-        pg.RowHeight = {'1.2x', '1x', 46, '1x'};       % the spectrogram on top, then the waveform and the sound level;
+
+        pg = uigridlayout(wave_view, [5 1]);           % the plots, the sound level and the spectrogram with their settings above
+        pg.RowHeight = {'1x', 24, '1x', 50, '1.5x'};   % the waveform and the sound level of one size, the spectrogram larger at the bottom;
                                                         % the up and down arrows move the colour floor of the spectrogram
         pg.Padding = [0 0 0 0];
         pg.RowSpacing = 2;
         % each plot in a box of its own: the axes keep fixed margins for the
         % labels inside it, the same for all, so the time axes stay aligned
         box_wave = uipanel(pg, 'BorderType', 'none', 'AutoResizeChildren', 'off');
+        box_wave.Layout.Row = 1;
         ax_wave = uiaxes(box_wave, 'Tag', 'waveform_axes', 'ButtonDownFcn', @on_wave_click);
-        box_wave.Layout.Row = 2;
-        lg = uigridlayout(pg, [2 6]);                   % the sound level: its time weighting, and the indicators below
-        lg.Layout.Row = 3;
-        lg.RowHeight = {24, 20};
-        lg.ColumnWidth = {100, 80, 100, 55, 55, '1x'};
-        lg.ColumnSpacing = 6;
-        lg.RowSpacing = 2;
-        lg.Padding = [0 0 0 0];
-        uilabel(lg, 'Text', 'Time weighting:', 'HorizontalAlignment', 'right');
-        uidropdown(lg, 'Items', {'Fast', 'Slow', 'Impulse'}, 'ItemsData', {'f', 's', 'i'}, 'Value', 'f', ...
-            'Tag', 'level_time_weighting', 'ValueChangedFcn', @(~, ~) draw_level(), ...
-            'Tooltip', 'Time weighting of the sound level (IEC 61672-1); the frequency weighting is the one of the player');
-        uilabel(lg, 'Text', 'Exceeded (%):', 'HorizontalAlignment', 'right');
+
+        ss = uigridlayout(pg, [2 1]);                   % the settings of the spectrogram, in two rows
+        ss.Layout.Row = 4;
+        ss.RowHeight = {24, 24};
+        ss.RowSpacing = 2;
+        ss.Padding = [0 0 0 0];
+        sw = uigridlayout(ss, [1 9]);                   % the plain STFT
+        sw.Padding = [0 0 0 0];
+        sw.ColumnWidth = {'fit', 'fit', 115, 70, 'fit', 52, 'fit', 52, '1x'};
+        sw.ColumnSpacing = 6;
+        uilabel(sw, 'Text', 'Spectrogram settings:','FontWeight','bold');
+        uilabel(sw, 'Text', '  Window:');
+        uidropdown(sw, 'Items', {'Hann', 'Hamming', 'Rectangular', 'Blackman-Harris'}, ...
+            'ItemsData', {'hann', 'hamming', 'rect', 'blackmanharris'}, 'Value', 'hann', ...
+            'Tag', 'spec_window', 'ValueChangedFcn', @on_spec_option);
+        uibutton(sw, 'Text', 'Import...', 'Tag', 'import_window', 'ButtonPushedFcn', @on_import_window, ...
+            'Tooltip', 'A .txt, .csv, .dat or .mat file with the samples of the window');
+        uilabel(sw, 'Text', '  FFT degree:');
+        uispinner(sw, 'Value', 10, 'Limits', [6 16], 'Step', 1, 'Tag', 'spec_degree', ...
+            'RoundFractionalValues', 'on', 'ValueChangedFcn', @on_spec_option, ...
+            'Tooltip', 'The FFT has 2^degree points (6 to 16); use the arrows');
+        uilabel(sw, 'Text', '  Overlap (%):');
+        uispinner(sw, 'Value', 50, 'Limits', [0 95], 'Step', 5, 'Tag', 'spec_overlap', ...
+            'ValueChangedFcn', @on_spec_option, 'Tooltip', 'Overlap of the frames (0 to 95); use the arrows');
+        uilabel(sw, 'Text', '');
+        sf = uigridlayout(ss, [1 8]);                   % the enhanced STFT and the filter boxes
+        sf.Padding = [0 0 0 0];
+        sf.ColumnWidth = {'fit', 70, 85, 10, 90, 95, 130, '1x'};   % the switch needs room for Off and On
+        sf.ColumnSpacing = 6;
+        uilabel(sf, 'Text', 'Enhanced:', 'Tooltip', 'Enhanced STFT');
+        uiswitch(sf, 'slider', 'Items', {'Off', 'On'}, 'Value', 'Off', 'Tag', 'spec_enhanced', ...
+            'ValueChangedFcn', @on_spec_enhanced, ...
+            'Tooltip', ['Enhanced STFT (consensus): nine windows of 8 to 512 ms, reassigned and combined, ' ...
+                        'so that no window has to be chosen. It replaces the window, the FFT degree and the overlap.']);
+        uidropdown(sf, 'Items', {'Readable', 'Sharp'}, 'ItemsData', {'readable', 'sharp'}, 'Value', 'readable', ...
+            'Tag', 'spec_enhanced_mode', 'Enable', 'off', 'ValueChangedFcn', @on_spec_enhanced, ...
+            'Tooltip', 'Readable: smoothing of 4 ms and 1.45 % of the frequency, continuous lines. Sharp: 1 ms and 1 Hz, the thinnest lines.');
+        uilabel(sf, 'Text', '');
+        uibutton(sf, 'state', 'Text', 'Draw filter', 'Tag', 'draw_box', 'ValueChangedFcn', @on_draw_box, ...
+            'Tooltip', 'Drag a box on the spectrogram, or click two opposite corners');
+        uibutton(sf, 'Text', 'Clear filters', 'Tag', 'clear_boxes', 'ButtonPushedFcn', @on_clear_boxes);
+        uidropdown(sf, 'Items', {'Filter: loop only', 'Filter: isolate', 'Filter: remove'}, ...
+            'ItemsData', {'loop', 'isolate', 'remove'}, 'Value', 'isolate', 'Tag', 'box_mode', ...
+            'ValueChangedFcn', @on_processing_changed, ...
+            'Tooltip', ['Loop only: the sound is not changed, and the loop runs inside the box. ' ...
+                        'Isolate: only what is inside the box plays. Remove: what is inside the box is taken out.']);
+        uilabel(sf, 'Text', '');
+
+        box_spec = uipanel(pg, 'BorderType', 'none', 'AutoResizeChildren', 'off');
+        box_spec.Layout.Row = 5;
+        ax_spec = uiaxes(box_spec, 'Tag', 'spectrogram', 'ButtonDownFcn', @on_wave_click);
+
+        lg = uigridlayout(pg, [1 9]);                   % the sound level: its frequency and time weightings, and percentages
+        lg.Layout.Row = 2;
+        lg.RowHeight = {24};
+        lg.ColumnWidth = {'fit', 'fit', 50, 'fit', 150, 'fit', 55, 55, '1x'};
+        lg.ColumnSpacing = 4;
+        lg.Padding = [0 0 0 0];                         % at the left, as the settings of the spectrogram
+        uilabel(lg, 'Text', 'Sound level meter settings:','FontWeight','bold');
+        uilabel(lg, 'Text', '  Weighting:');
+        uidropdown(lg, 'Items', {'Z', 'A', 'C'}, 'Value', 'Z', 'Tag', 'wave_weighting', ...
+            'ValueChangedFcn', @on_weighting_changed, ...
+            'Tooltip', 'Frequency weighting of the sound level, and also of the sound and the spectrogram (IEC 61672-1)');
+        uilabel(lg, 'Text', '  Time weighting:');
+        uibutton(lg, 'Text', '', 'Tag', 'level_time_weighting', 'ButtonPushedFcn', @on_time_weighting_button, ...
+            'Tooltip', ['Time weightings of the sound level (IEC 61672-1), one or more: one line each. ' ...
+                        'The frequency weighting is the one beside it']);
+        tw_menu = uicontextmenu(ancestor(parent, 'figure'), 'Tag', 'level_time_weighting_menu');
+        for tw_names = {'Fast', 'Slow', 'Impulse'}
+            uimenu(tw_menu, 'Text', tw_names{1}, 'Tag', ['level_tw_' lower(tw_names{1}(1))], ...
+                'Checked', strcmp(tw_names{1}, 'Fast'), 'MenuSelectedFcn', @on_time_weighting_ticked);
+        end
+        show_time_weightings();
+        uilabel(lg, 'Text', '  Exceeded (%):');
         tip = ['The level reached or exceeded during this percentage of the time (1 to 99), ' ...
                'as N5 in ISO 532-1; use the arrows'];
         uispinner(lg, 'Value', 5, 'Limits', [1 99], 'Step', 1, 'RoundFractionalValues', 'on', ...
             'Tag', 'level_percentile_1', 'ValueChangedFcn', @(~, ~) show_level_values(), 'Tooltip', tip);
         uispinner(lg, 'Value', 90, 'Limits', [1 99], 'Step', 1, 'RoundFractionalValues', 'on', ...
             'Tag', 'level_percentile_2', 'ValueChangedFcn', @(~, ~) show_level_values(), 'Tooltip', tip);
-        indicators = uilabel(lg, 'Text', '', 'Tag', 'level_indicators', 'FontSize', 14, ...   % a row of its own: too wide beside the spinners
+        uilabel(lg, 'Text', '');
+        box_lvl = uipanel(pg, 'BorderType', 'none', 'AutoResizeChildren', 'off');
+        box_lvl.Layout.Row = 3;
+        ax_lvl = uiaxes(box_lvl, 'Tag', 'level_axes', 'ButtonDownFcn', @on_wave_click);
+        uilabel(box_lvl, 'Text', 'Indicators', 'Tag', 'level_indicators_title', 'FontSize', 12, ...
+            'FontWeight', 'bold', 'VerticalAlignment', 'top');      % above the indicators, level with the top of the plot
+        uilabel(box_lvl, 'Text', '', 'Tag', 'level_indicators', 'FontSize', 12, ...   % in the margin on the right of the plot
+            'VerticalAlignment', 'top', ...
             'Tooltip', ['Leq: equivalent level. LE: sound exposure level (SEL), Leq plus 10 lg of the duration in s. ' ...
                         'Lmax: maximum. LN: level reached or exceeded during N % of the time. All in dB.']);
-        indicators.Layout.Row = 2;
-        indicators.Layout.Column = [1 6];
-        box_lvl = uipanel(pg, 'BorderType', 'none', 'AutoResizeChildren', 'off');
-        ax_lvl = uiaxes(box_lvl, 'Tag', 'level_axes', 'ButtonDownFcn', @on_wave_click);
-        box_lvl.Layout.Row = 4;
-        box_spec = uipanel(pg, 'BorderType', 'none', 'AutoResizeChildren', 'off');
-        box_spec.Layout.Row = 1;
-        ax_spec = uiaxes(box_spec, 'Tag', 'spectrogram', 'ButtonDownFcn', @on_wave_click);
+        set([ax_wave, ax_lvl, ax_spec], 'TitleFontWeight', 'normal');
+        % set([ax_wave, ax_lvl, ax_spec], 'TitleFontSizeMultiplier', 1.1, 'TitleFontWeight', 'normal');   % padrão 1.1
         box_wave.SizeChangedFcn = @(src, ~) il_fit_axes(src, ax_wave, 26);
-        box_spec.SizeChangedFcn = @(src, ~) il_fit_axes(src, ax_spec, 26);
-        box_lvl.SizeChangedFcn = @(src, ~) il_fit_axes(src, ax_lvl);
+        box_spec.SizeChangedFcn = @(src, ~) il_fit_axes(src, ax_spec);   % the plot at the bottom: room for the time label
+        box_lvl.SizeChangedFcn = @(src, ~) fit_level(src);
         il_fit_axes(box_wave, ax_wave, 26);
-        il_fit_axes(box_lvl, ax_lvl);
-        il_fit_axes(box_spec, ax_spec, 26);
+        fit_level(box_lvl);
+        il_fit_axes(box_spec, ax_spec);
         ax_spec.XAxis.LimitsChangedFcn = @on_spec_limits;
         ax_wave.XAxis.LimitsChangedFcn = @on_wave_limits;
         ax_lvl.XAxis.LimitsChangedFcn = @on_level_limits;
         wave_appdata();
+    end
+
+    function fit_level(box)
+        % the sound level plot, with its indicators in the margin on its right
+        % and their title above them, level with the top of the plot. A longer
+        % list (more than one time weighting) starts at the top of the box, and
+        % its font shrinks from 12 when it still does not fit
+        il_fit_axes(box, ax_lvl, 26);                 % no time label: the spectrogram below has it
+        p = ax_lvl.InnerPosition;
+        x = p(1) + p(3) + 8;
+        w = max(box.InnerPosition(3) - x, 20);         % to the right edge of the box
+        lbl = findobj(box, 'Tag', 'level_indicators');
+        n_lines = max(numel(cellstr(lbl.Text)), 1);
+        top_lbl = p(2) + p(4);                         % the top of the title: level with the top of the plot
+        if n_lines * 12 * 1.25 > top_lbl - 26          % a line takes about 1.25 times the font size
+            top_lbl = box.InnerPosition(4);            % the top of the box
+        end
+        fs_lbl = min(12, floor((top_lbl - 26) / (n_lines * 1.25)));
+        set(findobj(box, 'Tag', 'level_indicators_title'), 'Position', [x, top_lbl - 20, w, 20]);
+        set(lbl, 'Position', [x, 0, w, max(top_lbl - 26, 20)], 'FontSize', max(fs_lbl, 8));   % below the title
     end
 
     function on_save_wave_plots(~, ~)
@@ -1180,7 +1239,7 @@ end
         n = 0;
         names = {'spectrogram', 'waveform', 'level'};
         axs = [ax_spec, ax_wave, ax_lvl];
-        bottom = [26 26 48];                           % the margin under each plot on screen
+        bottom = [48 26 26];                           % the margin under each plot on screen: the spectrogram has the time label
         for k = 1:3
             had = axs(k).XLabel.String;
             xlabel(axs(k), 'Time (s)');                % a file stands alone: each carries its time label
@@ -1581,10 +1640,73 @@ end
     function end_drag()
         drag_active = false;
         if il_is_open(win_wave)
-            win_wave.WindowButtonMotionFcn = '';
-            win_wave.WindowButtonUpFcn = '';
+            win_wave.WindowButtonMotionFcn = @on_splitter_motion;   % the gaps between the boxes again
+            win_wave.WindowButtonUpFcn = @on_splitter_up;
             delete(findobj(ax_spec, 'Tag', 'box_preview'));
         end
+    end
+
+    function mode = splitter_at(pt)
+        % 'rows' over the gap between the two lists, 'cols' over the gap between the
+        % lists and the tabs, '' elsewhere (pt in pixels of the window; 3 px of slack)
+        mode = '';
+        ps_sig = getpixelposition(sig_box.Parent, true);   % the box of the signals, above
+        pa_ana = getpixelposition(ana_box.Parent, true);   % the box of the analyses, below
+        if pt(1) >= ps_sig(1) && pt(1) <= ps_sig(1) + ps_sig(3) && pt(2) >= pa_ana(2) + pa_ana(4) - 3 && pt(2) <= ps_sig(2) + 3
+            mode = 'rows';
+        elseif pt(1) >= ps_sig(1) + ps_sig(3) - 3 && pt(1) <= ps_sig(1) + ps_sig(3) + main.ColumnSpacing + 3 && ...
+                pt(2) >= pa_ana(2) && pt(2) <= ps_sig(2) + ps_sig(4)
+            mode = 'cols';
+        end
+    end
+
+    function on_splitter_down(~, ~, pt)
+        % a press on a gap starts to drag it (pt: the point, for the tests)
+        if nargin < 3
+            pt = win_wave.CurrentPoint;
+        end
+        splitter.mode = splitter_at(pt);
+        splitter.from = pt;
+        ps_sig = getpixelposition(sig_box.Parent, true);
+        pa_ana = getpixelposition(ana_box.Parent, true);
+        switch splitter.mode
+            case 'rows'
+                splitter.size = ps_sig(4);              % the height of the signals
+                splitter.total = ps_sig(4) + pa_ana(4); % both lists
+            case 'cols'
+                splitter.size = ps_sig(3);              % the width of the lists
+        end
+    end
+
+    function on_splitter_motion(~, ~, pt)
+        % the pointer shows a gap that can be dragged; while dragging, the room is shared
+        % again, with at least 120 px for each list, 420 px for the lists and 520 px for the tabs
+        if nargin < 3
+            pt = win_wave.CurrentPoint;
+        end
+        switch splitter.mode
+            case 'rows'
+                h_sig = splitter.size - (pt(2) - splitter.from(2));   % up: the signals shorter
+                left.RowHeight = {min(max(h_sig, 120), splitter.total - 120), '1x'};
+            case 'cols'
+                w_lists = splitter.size + (pt(1) - splitter.from(1));
+                main.ColumnWidth = {min(max(w_lists, 420), max(win_wave.Position(3) - 520, 420)), '1x'};
+            otherwise
+                shape_ptr = 'arrow';
+                switch splitter_at(pt)
+                    case 'rows'
+                        shape_ptr = 'top';
+                    case 'cols'
+                        shape_ptr = 'left';
+                end
+                if ~strcmp(win_wave.Pointer, shape_ptr)
+                    win_wave.Pointer = shape_ptr;
+                end
+        end
+    end
+
+    function on_splitter_up(~, ~)
+        splitter.mode = '';
     end
 
     function pt = pointer_point(event)
@@ -2618,8 +2740,9 @@ end
             cb = colorbar(ax_spec);
         end
         cb.Label.String = sprintf('SPL (%s)', il_level_unit(weighting));   % short: it fits the height of the plot
-        il_fit_axes(ax_spec.Parent, ax_spec, 26);      % the time label only on the sound level, the plot at the bottom
+        il_fit_axes(ax_spec.Parent, ax_spec);          % the time label only on the spectrogram, the plot at the bottom
         ylabel(ax_spec, 'Frequency (Hz)');
+        xlabel(ax_spec, 'Time (s)');
         if enhanced
             spec_title();
         else
@@ -2657,50 +2780,111 @@ end
 
     function draw_level()
         % the sound level meter of SQAT (Do_SLM) on the signal on screen, with
-        % the frequency weighting of the player and the time weighting chosen
-        % above the plot; the indicators as the Sound level metric gives them
+        % the frequency weighting of the player and each time weighting ticked
+        % above the plot, one line each; the indicators as the Sound level metric gives them
         cla(ax_lvl);
+        legend(ax_lvl, 'off');
         lvl_L = [];
         if isempty(wave_x)
             show_level_values();
             return
         end
         fw = findobj(win_wave, 'Tag', 'wave_weighting').Value;
-        dd_tw = findobj(win_wave, 'Tag', 'level_time_weighting');
-        lvl_L = Do_SLM(wave_x, wave_fs, fw, dd_tw.Value, 94);   % the signal is in Pa: 94 dBFS keeps it
-        lvl_L = lvl_L(:);
+        [tws, tw_names] = time_weightings();
+        all_tw = {'f', 's', 'i'};
+        L3 = cell2mat(cellfun(@(tw) reshape(Do_SLM(wave_x, wave_fs, fw, tw, 94), [], 1), all_tw, ...
+            'UniformOutput', false));                          % the signal is in Pa: 94 dBFS keeps it; one column per time weighting
+        lvl_L = L3(:, ismember(all_tw, tws));                  % the ones ticked
         step = max(1, round(wave_fs / 1000));                  % the level every millisecond, as the metric
-        plot(ax_lvl, (0:step:numel(lvl_L) - 1)' / wave_fs, lvl_L(1:step:end), ...
-            'PickableParts', 'none', 'Tag', 'level_line');
+        for k_tw = 1:numel(tws)
+            plot(ax_lvl, (0:step:size(lvl_L, 1) - 1)' / wave_fs, lvl_L(1:step:end, k_tw), ...
+                'PickableParts', 'none', 'Tag', 'level_line', 'DisplayName', tw_names{k_tw});
+            hold(ax_lvl, 'on');
+        end
+        hold(ax_lvl, 'off');
+        if numel(tws) > 1
+            legend(ax_lvl, 'Location', 'southwest', 'Orientation', 'horizontal', 'Box', 'off', 'AutoUpdate', 'off');
+        end
         xlim(ax_lvl, ax_wave.XLim);
+        % the y axis from the three time weightings, ticked or not, so that ticking one
+        % does not move it: from the lowest level exceeded 99 % of the time (the first
+        % milliseconds, where the time weighting rises from zero, fall below it) to the
+        % highest maximum, in steps of 10 dB
+        lo_lvl = floor(min(arrayfun(@(k) get_exceeded_value(L3(:, k), 99), 1:3)) / 10) * 10;
+        hi_lvl = ceil(max(L3(:)) / 10) * 10;
+        if all(isfinite([lo_lvl hi_lvl]))
+            ylim(ax_lvl, [lo_lvl max(hi_lvl, lo_lvl + 10)]);
+        end
         ylabel(ax_lvl, sprintf('SPL (%s)', il_level_unit(fw)));   % short: the plot is low
-        xlabel(ax_lvl, 'Time (s)');
-        title(ax_lvl, sprintf('Sound pressure level (%s-weighted, %s)', fw, dd_tw.Items{strcmp(dd_tw.ItemsData, dd_tw.Value)}));
+        title(ax_lvl, sprintf('Sound pressure level (%s-weighted, %s)', fw, strjoin(tw_names, ', ')));
         xline(ax_lvl, (max(play_start, 1) - 1) / wave_fs, 'Color', [0.85 0.2 0.2], 'LineWidth', 1.5, ...
             'Tag', 'playhead_level', 'PickableParts', 'none');
-        il_fit_axes(ax_lvl.Parent, ax_lvl);
         show_level_values();
+    end
+
+    function [tws, tw_names] = time_weightings()
+        % the time weightings ticked in the menu of the sound level: 'f', 's'
+        % and 'i' for Do_SLM, and their names, in this order
+        tws = {};
+        tw_names = {};
+        for tw_menu = findobj(win_wave, 'Type', 'uimenu', '-regexp', 'Tag', '^level_tw_')'
+            if tw_menu.Checked
+                tws{end+1} = tw_menu.Tag(end); %#ok<AGROW>
+                tw_names{end+1} = tw_menu.Text; %#ok<AGROW>
+            end
+        end
+        [~, k_tw] = sort(cellfun(@(tw) find(strcmp(tw, {'f', 's', 'i'})), tws));
+        tws = tws(k_tw);
+        tw_names = tw_names(k_tw);
+    end
+
+    function show_time_weightings()
+        % the names of the time weightings ticked, on the button of their menu
+        [~, tw_names] = time_weightings();
+        set(findobj(win_wave, 'Tag', 'level_time_weighting'), 'Text', [strjoin(tw_names, ', ') ' ' char(9662)]);
+    end
+
+    function on_time_weighting_button(src, ~)
+        % the menu of the time weightings, opened under its button
+        p = getpixelposition(src, true);
+        open(findobj(win_wave, 'Tag', 'level_time_weighting_menu'), p(1), p(2));
+    end
+
+    function on_time_weighting_ticked(src, ~)
+        % ticks or unticks one time weighting; the last one ticked stays
+        if src.Checked && isscalar(time_weightings())
+            return
+        end
+        src.Checked = ~src.Checked;
+        show_time_weightings();
+        draw_level();
     end
 
     function show_level_values()
         % Leq, LE (SEL), Lmax and the levels exceeded during the two percentages
-        % of the time chosen, in one line above the plot
+        % of the time chosen, one per line in the margin on the right of the plot
+        % (the unit is the one of its y label)
         lbl = findobj(win_wave, 'Tag', 'level_indicators');
         if isempty(lvl_L)
             lbl.Text = '';
             return
         end
         F = findobj(win_wave, 'Tag', 'wave_weighting').Value;
-        T = upper(findobj(win_wave, 'Tag', 'level_time_weighting').Value);
-        Leq = Get_Leq(lvl_L, wave_fs);
-        txt = sprintf('L%seq %.1f   L%sE %.1f   L%s%smax %.1f', F, Leq, F, Leq + 10*log10(numel(lvl_L) / wave_fs), ...
-            F, T, max(lvl_L));
+        tws = time_weightings();
+        Leq = Get_Leq(lvl_L(:, 1), wave_fs);           % the same for every time weighting
+        txt = {sprintf('L%seq = %.1f', F, Leq), ...
+               sprintf('L%sE = %.1f', F, Leq + 10*log10(size(lvl_L, 1) / wave_fs))};
         pct = unique([findobj(win_wave, 'Tag', 'level_percentile_1').Value, ...
             findobj(win_wave, 'Tag', 'level_percentile_2').Value]);
-        for p = pct
-            txt = sprintf('%s   L%s%s%g %.1f', txt, F, T, p, get_exceeded_value(lvl_L, p));
+        for k_tw = 1:numel(tws)
+            T = upper(tws{k_tw});
+            txt{end+1} = sprintf('L%s%smax = %.1f', F, T, max(lvl_L(:, k_tw))); %#ok<AGROW>
+            for p = pct
+                txt{end+1} = sprintf('L%s%s%g = %.1f', F, T, p, get_exceeded_value(lvl_L(:, k_tw), p)); %#ok<AGROW>
+            end
         end
-        lbl.Text = [txt ' ' il_level_unit(F)];
+        lbl.Text = txt;                                % a cell array: one line each
+        fit_level(ax_lvl.Parent);                      % the font of the list follows its length
     end
 
     function follow_limits(src, dst, event)
@@ -3407,7 +3591,7 @@ function il_fit_axes(box, ax, bottom)
 % room for the ticks and the label of y on the left, for the colorbar and its
 % label on the right (kept on all plots so their time axes line up), for the
 % title on top and the time ticks and label below
-m = [80 100 48 30];                                   % left, right, bottom, top
+m = [80 115 48 30];                                   % left, right, bottom, top (right: the colorbar, or the level indicators)
 if nargin > 2
     m(3) = bottom;                                    % a plot with no time label under it
 end

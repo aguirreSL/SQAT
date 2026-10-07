@@ -728,6 +728,33 @@ for value = {'sqat', 'all', 'loudness'}
 end
 end
 
+function test_gui_gaps_between_the_boxes_can_be_dragged(tc)
+% Dragging the gap between the two lists shares their height otherwise, and
+% dragging the gap beside them widens the lists; the pointer shows the gaps.
+% The points go straight to the callbacks of the window, as a test moves no mouse.
+fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+drawnow
+ps = getpixelposition(findobj(fig, 'Tag', 'signals_box'), true);
+pa = getpixelposition(findobj(fig, 'Tag', 'analyses_box'), true);
+gap = [ps(1) + ps(3)/2, (pa(2) + pa(4) + ps(2)) / 2];   % between the two lists
+fig.WindowButtonMotionFcn(fig, [], gap);
+tc.verifyEqual(char(fig.Pointer), 'top');
+fig.WindowButtonDownFcn(fig, [], gap);
+fig.WindowButtonMotionFcn(fig, [], gap + [0 50]);        % 50 px up: the signals shorter
+fig.WindowButtonUpFcn(fig, []);
+tc.verifyEqual(findobj(fig, 'Tag', 'lists_grid').RowHeight{1}, ps(4) - 50);
+side = [ps(1) + ps(3) + 5, ps(2) + ps(4)/2];             % between the lists and the tabs
+fig.WindowButtonMotionFcn(fig, [], side);
+tc.verifyEqual(char(fig.Pointer), 'left');
+fig.WindowButtonDownFcn(fig, [], side);
+fig.WindowButtonMotionFcn(fig, [], side + [80 0]);       % 80 px to the right: the lists wider
+fig.WindowButtonUpFcn(fig, []);
+tc.verifyEqual(findobj(fig, 'Tag', 'main_grid').ColumnWidth{1}, ps(3) + 80);
+fig.WindowButtonMotionFcn(fig, [], [ps(1) + 20, ps(2) + 20]);   % inside a box: the arrow again
+tc.verifyEqual(char(fig.Pointer), 'arrow');
+end
+
 function test_gui_calibration_explains_the_full_scale(tc)
 % The head of the column explains calibration and its three ways; each
 % signal shows its method and, in the tooltip, its full-scale level.
@@ -819,6 +846,64 @@ S = describe();
 tc.verifySubstring(S.Value{strcmp(S.Item, 'Signal #1')}, ['(' cal{1} '; ' cal{2} ')']);
 end
 
+function test_gui_calibration_dialog_has_a_row_per_channel(tc)
+% The calibration dialog of a stereo file opens on one level for all
+% channels; with Same for all channels unticked it shows a row per channel,
+% OK gives each channel its own full scale, and the dialog opens again on them.
+fig = SQAT_GUI({tc.TestData.wav_stereo}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+il_in_calibration_dialog(fig, 1, @per_channel);
+tc.verifyEqual(findobj(fig, 'Tag', 'signal_cal_1').Text, '94/100 dBFS');
+tc.verifySubstring(findobj(fig, 'Tag', 'signal_cal_1').Tooltip, 'Full scale: 94.00, 100.00 dB SPL');
+shown = {};
+il_in_calibration_dialog(fig, 1, @read_back);
+tc.verifyEqual(shown, {false, true, 94, 100});
+
+    function per_channel(d)
+        tc.verifyTrue(findobj(d, 'Tag', 'cal_same').Value);
+        tc.verifyFalse(logical(findobj(d, 'Tag', 'cal_level_1').Visible));
+        il_set(d, 'cal_same', false);
+        tc.verifyFalse(logical(findobj(d, 'Tag', 'cal_level').Visible));
+        h = findobj(d, 'Tag', 'cal_level_1'); h.Value = 94;
+        h = findobj(d, 'Tag', 'cal_level_2'); h.Value = 100;
+        il_press(d, 'cal_ok');
+    end
+
+    function read_back(d)
+        shown = {findobj(d, 'Tag', 'cal_same').Value, logical(findobj(d, 'Tag', 'cal_level_2').Visible), ...
+                 findobj(d, 'Tag', 'cal_level_1').Value, findobj(d, 'Tag', 'cal_level_2').Value};
+        il_press(d, 'cal_cancel');
+    end
+end
+
+function test_gui_calibration_dialog_takes_a_recording_per_channel(tc)
+% Calibrator recording with a row per channel: OK asks for a recording on
+% every row, then each channel takes the full scale of its own recording.
+fs = tc.TestData.fs;
+t = (0:2*fs-1)' / fs;
+cal = fullfile(tc.TestData.dir_tmp, {'calibrator_left.wav', 'calibrator_right.wav'});
+audiowrite(cal{1}, 0.5 * sin(2*pi*1000*t), fs, 'BitsPerSample', 32);
+audiowrite(cal{2}, 0.25 * sin(2*pi*1000*t), fs, 'BitsPerSample', 32);
+fig = SQAT_GUI({tc.TestData.wav_stereo}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+message = '';
+il_in_calibration_dialog(fig, 1, @two_recordings);
+tc.verifyEqual(message, 'Choose the recording of the calibrator for each row.');
+tc.verifyEqual(findobj(fig, 'Tag', 'signal_cal_1').Text, 'calib. 94/94 dB');
+tc.verifySubstring(findobj(fig, 'Tag', 'signal_cal_1').Tooltip, ...
+    sprintf('Full scale: %.2f, %.2f dB SPL', 94 - 20*log10([0.5 0.25]/sqrt(2))));
+
+    function two_recordings(d)
+        il_set(d, 'cal_method', 'calibrator');
+        il_set(d, 'cal_same', false);
+        h = findobj(d, 'Tag', 'cal_file_1'); h.UserData = cal{1};   % as Browse... sets it
+        il_press(d, 'cal_ok');
+        message = findobj(d, 'Tag', 'cal_message').Text;     % the second row has no recording yet
+        h = findobj(d, 'Tag', 'cal_file_2'); h.UserData = cal{2};
+        il_press(d, 'cal_ok');
+    end
+end
+
 function test_gui_reports_a_failing_metric_and_goes_on(tc)
 % A metric that raises an error (a time skip longer than the signal) is
 % reported as ERROR in the console, and the other metric of the run still
@@ -872,27 +957,47 @@ end
 
 function test_gui_sound_level_follows_the_weightings(tc)
 % The sound level below the waveform is Do_SLM of the signal on screen, with
-% the frequency weighting of the player and the time weighting above the
-% plot; its indicators follow the two exceedance percentages of the spinners.
+% the frequency weighting beside it and each time weighting ticked in the
+% menu, one line each; the indicators give Leq and LE once, and Lmax and the
+% two exceedance percentages of the spinners for each time weighting.
 fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 [x, fs] = SQAT_GUI_load(tc.TestData.wav_mono, 94, 1);
 L = Do_SLM(x, fs, 'Z', 'f', 94);
 lbl = findobj(fig, 'Tag', 'level_indicators');
-tc.verifySubstring(lbl.Text, sprintf('LZeq %.1f', Get_Leq(L, fs)));
-tc.verifySubstring(lbl.Text, sprintf('LZF5 %.1f   LZF90 %.1f dB', get_exceeded_value(L, 5), get_exceeded_value(L, 90)));
-tc.verifySubstring(lbl.Text, sprintf('LZE %.1f', Get_Leq(L, fs) + 10*log10(numel(L) / fs)));
+Leq = Get_Leq(L, fs);
+tc.verifyEqual(cellstr(lbl.Text), {sprintf('LZeq = %.1f', Leq), sprintf('LZE = %.1f', Leq + 10*log10(numel(L) / fs)), ...
+    sprintf('LZFmax = %.1f', max(L)), sprintf('LZF5 = %.1f', get_exceeded_value(L, 5)), ...
+    sprintf('LZF90 = %.1f', get_exceeded_value(L, 90))}');   % the label keeps its lines as a column
+tc.verifyEqual(findobj(fig, 'Tag', 'level_time_weighting').Text, ['Fast ' char(9662)]);
+ax = findobj(fig, 'Tag', 'level_axes');               % the y axis from the three time weightings, in steps of 10 dB
+L3 = cellfun(@(t) Do_SLM(x, fs, 'Z', t, 94), {'f', 's', 'i'}, 'UniformOutput', false);
+lo = floor(min(cellfun(@(l) get_exceeded_value(l, 99), L3)) / 10) * 10;
+tc.verifyEqual(ax.YLim, [lo max(ceil(max(cellfun(@max, L3)) / 10) * 10, lo + 10)]);
 il_set(fig, 'wave_weighting', 'A');
-il_set(fig, 'level_time_weighting', 's');
+y_A = ax.YLim;
+il_menu(fig, 'level_tw_s');                           % Slow ticked, then Fast unticked
+il_menu(fig, 'level_tw_f');
 L = Do_SLM(x, fs, 'A', 's', 94);
-tc.verifySubstring(lbl.Text, sprintf('LASmax %.1f', max(L)));
+tc.verifySubstring(strjoin(cellstr(lbl.Text)), sprintf('LASmax = %.1f', max(L)));
 tc.verifyEqual(findobj(fig, 'Tag', 'level_axes').Title.String, 'Sound pressure level (A-weighted, Slow)');
+il_menu(fig, 'level_tw_s');                           % the last one ticked stays
+tc.verifyEqual(findobj(fig, 'Tag', 'level_time_weighting').Text, ['Slow ' char(9662)]);
 cbs = findall(findobj(fig, 'Tag', 'spectrogram').Parent, 'Type', 'colorbar');   % one colour bar, relabelled
 tc.assertNumElements(cbs, 1);
 tc.verifyEqual(cbs.Label.String, 'SPL (dBA)');
 il_set(fig, 'level_percentile_1', 10);
 il_set(fig, 'level_percentile_2', 50);
-tc.verifySubstring(lbl.Text, sprintf('LAS10 %.1f   LAS50 %.1f dB', get_exceeded_value(L, 10), get_exceeded_value(L, 50)));
+tc.verifySubstring(strjoin(cellstr(lbl.Text)), sprintf('LAS10 = %.1f LAS50 = %.1f', get_exceeded_value(L, 10), get_exceeded_value(L, 50)));
+il_menu(fig, 'level_tw_i');                           % all three: one line and three indicators each
+il_menu(fig, 'level_tw_f');
+tc.verifyNumElements(findobj(fig, 'Tag', 'level_line'), 3);
+tc.verifyEqual(findobj(fig, 'Tag', 'level_axes').Title.String, 'Sound pressure level (A-weighted, Fast, Slow, Impulse)');
+tc.verifyEqual(findobj(fig, 'Tag', 'level_time_weighting').Text, ['Fast, Slow, Impulse ' char(9662)]);
+tc.verifyNumElements(cellstr(lbl.Text), 11);
+tc.verifyEqual(ax.YLim, y_A);                         % ticking the time weightings left the y axis
+L = Do_SLM(x, fs, 'A', 'i', 94);
+tc.verifySubstring(strjoin(cellstr(lbl.Text)), sprintf('LAImax = %.1f LAI10 = %.1f', max(L), get_exceeded_value(L, 10)));
 end
 
 function test_gui_saves_the_three_plots_of_the_waveform_tab(tc)
@@ -1816,7 +1921,7 @@ axs = findobj(w, 'Tag', 'spectrogram');
 bt = findobj(w, 'Tag', 'draw_box');
 bt.Value = true; bt.ValueChangedFcn(bt, []);
 axs.ButtonDownFcn(axs, struct('IntersectionPoint', [0.5 1500 0]));   % press
-tc.assertNotEmpty(w.WindowButtonMotionFcn, 'nothing follows the mouse');
+tc.assertSubstring(func2str(w.WindowButtonMotionFcn), 'on_box_motion', 'nothing follows the mouse');
 w.WindowButtonMotionFcn(w, struct('IntersectionPoint', [1.5 2000 0]));
 prev = findobj(w, 'Tag', 'box_preview');
 tc.assertNumElements(prev, 1);                             % the box follows the mouse
@@ -1828,7 +1933,7 @@ tc.assertNumElements(box, 1);
 tc.verifyEqual([min(box.XData) max(box.XData)], [0.5 2.5], 'AbsTol', 1e-9);
 tc.verifyEqual([min(box.YData) max(box.YData)], [1500 2500], 'AbsTol', 1e-9);
 tc.verifyEmpty(findobj(w, 'Tag', 'box_preview'));
-tc.verifyEmpty(w.WindowButtonMotionFcn, 'the mouse is still followed');
+tc.verifySubstring(func2str(w.WindowButtonMotionFcn), 'on_splitter_motion', 'the box still follows the mouse');   % the gaps between the boxes again
 tc.verifyFalse(bt.Value);
 % a press and a release on the same spot is the first click of two
 bt.Value = true; bt.ValueChangedFcn(bt, []);
@@ -2518,6 +2623,47 @@ set_calibration = getappdata(fig, 'sqat_set_calibration');
 set_calibration(k, 'dbfs', v);
 end
 
+function il_in_calibration_dialog(fig, k, fn)
+% opens the calibration dialog of signal k and runs fn(d) on it from a timer,
+% since the dialog holds the call until it closes; an error in fn closes the
+% dialog and is raised here. fn waits 0.3 s after the dialog appears: a click
+% while uiwait is still starting deletes the dialog before uiwait reads it
+err = [];
+seen = 0;
+tm = timer('ExecutionMode', 'fixedSpacing', 'Period', 0.05, 'TasksToExecute', 200, 'TimerFcn', @tick);
+start(tm);
+try
+    il_press(fig, sprintf('signal_cal_%d', k));
+catch e
+    err = e;
+end
+stop(tm);
+delete(tm);                                         % by hand: tick holds this workspace, so no onCleanup would run
+if ~isempty(err)
+    rethrow(err);
+end
+
+    function tick(~, ~)
+        d = findall(groot, 'Type', 'figure', 'Tag', 'SQAT_GUI_calibration');
+        if isempty(d)
+            return
+        end
+        seen = seen + 1;
+        if seen < 6
+            return
+        end
+        stop(tm);
+        try
+            fn(d);
+        catch e
+            err = e;
+        end
+        if isvalid(d)
+            delete(d);                                  % fn left it open: Cancel
+        end
+    end
+end
+
 function names = il_signal_names(fig)
 names = {};
 k = 1;
@@ -2568,6 +2714,12 @@ function il_set(win, tag, value)
 c = findobj(win, 'Tag', tag);
 c.Value = value;
 c.ValueChangedFcn(c, []);
+end
+
+function il_menu(fig, tag)
+% the menu item of that tag, as a click on it
+m = findobj(fig, 'Tag', tag);
+m.MenuSelectedFcn(m, []);
 end
 
 function il_press(fig, tag)
