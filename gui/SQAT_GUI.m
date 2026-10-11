@@ -702,6 +702,12 @@ end
             write_log('No metrics in the list of analyses. Add one with Add metric.');
             return
         end
+        if is_playing()                          % the progress dialog locks the window, and with it Pause and Stop
+            play_start = file_position(player.CurrentSample);
+            stop_player();
+            btn_play.Text = 'Play';
+            write_log('Paused for the analysis.');
+        end
         sel = {analyses.key};
         show = false;                            % the other figures are drawn on request
         k_active = find(use == active_idx, 1);   % the signal on screen is analysed first,
@@ -2372,6 +2378,20 @@ end
         if strcmp(A(1).kind, 'profile') && strcmp(A(1).bandscale, 'log')
             ax.XScale = 'log';
         end
+        if strcmp(A(1).id, 'spectrum')
+            % from 20 Hz to half the sampling frequency, and down to 120 dB under the
+            % highest level in steps of 10 dB: the A and C filters have a zero at half
+            % the sampling frequency, and the automatic axis would follow the last bins
+            x_hi = max(arrayfun(@(a) a.x(end), A));
+            y_seen = cell2mat(arrayfun(@(a) a.y(a.x >= 20), A(:), 'UniformOutput', false));
+            y_seen = y_seen(isfinite(y_seen));
+            if x_hi > 20
+                xlim(ax, [20 x_hi]);
+            end
+            if ~isempty(y_seen) && min(y_seen) < max(y_seen) - 120
+                ylim(ax, [floor((max(y_seen) - 120) / 10), ceil(max(y_seen) / 10)] * 10);
+            end
+        end
         xlabel(ax, A(1).xlabel);
         ylabel(ax, A(1).ylabel);
         if numel(A) == 1
@@ -3819,9 +3839,10 @@ function s = il_short(option)
 % the short name of an option in the summary of the parameters
 names = {'Free field', 'free field'; 'Diffuse field', 'diffuse field'; 'Free-frontal', 'free-frontal'; ...
          'Diffuse', 'diffuse'; 'Stationary', 'stationary'; 'Time-varying', 'time-varying'; ...
-         'DIN 45692', 'DIN 45692'; 'Aures', 'Aures'; 'von Bismarck', 'von Bismarck'};
+         'DIN 45692', 'DIN 45692'; 'Aures', 'Aures'; 'von Bismarck', 'von Bismarck'; ...
+         'Level per bin', 'level'; 'Spectral density', 'density'};
 k = find(strcmp(names(:, 1), option), 1);
-s = option;
+s = regexprep(option, '^(\d+) \(\d+ points\)$', '2^$1');   % an FFT degree: 14 (16384 points) -> 2^14
 if ~isempty(k)
     s = names{k, 2};
 end
