@@ -68,9 +68,12 @@ it merges the main of ggrecow/SQAT and the GUI branch of this fork
 machine each, on MATLAB R2026a: `gui` (with a virtual display and audio
 output), `reference` (with the ISO 532-1 signals and the Zenodo sounds) and
 `unit`. `test/report/merge_reports.py` joins their `data.json` into one
-report, published on https://aguirresl.github.io/SQAT/. When every test
-passes, the merge is pushed, so this main follows the upstream one with the
-tests on top.
+report, published on https://aguirresl.github.io/SQAT/. When the `reference`
+and `unit` tests pass, the merge is pushed, so this main follows the upstream
+one with the tests on top. The `gui` block only reports: the GUI lives in the
+upstream repository and changes there without these tests, so a failure of
+that block shows in the report and as a warning on the run, and the merge
+goes ahead.
 
 The `reference` block recomputes the validation scripts (about 11 min). Its
 result is cached under a hash of the code it tests (the metrics, the

@@ -1,8 +1,10 @@
 # Nightly tests of this fork: brings in the main of ggrecow/SQAT and the GUI
 # (feat/sqat-gui of this fork), runs the three folders of test/ in parallel
 # (gui, reference, unit; one machine each), joins their results into one
-# report and publishes it on GitHub Pages. When every test passes, the merge
-# is pushed, so this main follows the upstream one with the tests on top.
+# report and publishes it on GitHub Pages. When the reference and unit tests
+# pass, the merge is pushed, so this main follows the upstream one with the
+# tests on top. The GUI block only reports: the GUI is Gil's, and a change of
+# his layout fails those tests until they are brought up to date.
 #
 # The reference block recomputes the validation scripts of the metrics, about
 # 11 min; its result is kept in a cache keyed by the code it tests and reused
@@ -50,6 +52,7 @@ jobs:
   tests:
     needs: prepare
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.block == 'gui' }}   # a failure shows in the report and holds no push
     strategy:
       fail-fast: false
       matrix:
@@ -172,7 +175,7 @@ jobs:
         run: |
           ls -R blocks | head -30
           # the page goes out also when a test failed: that is when it is read
-          python3 test/report/merge_reports.py site/index.html blocks/report-gui/data.json blocks/report-reference/data.json blocks/report-unit/data.json || echo "some tests failed: see the report"
+          python3 test/report/merge_reports.py site/index.html blocks/report-gui/data.json blocks/report-reference/data.json blocks/report-unit/data.json || echo "::warning::some tests failed: see the report"
           for b in gui reference unit; do cp blocks/report-$b/runner.log site/runner-$b.log 2>/dev/null || true; done
 
       - uses: actions/upload-pages-artifact@v3
