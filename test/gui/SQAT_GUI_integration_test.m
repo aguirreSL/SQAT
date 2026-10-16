@@ -69,34 +69,17 @@ end
 
 %% Main window -------------------------------------------------------------
 
-function test_gui_opens_with_the_expected_controls(tc)
-% The main window opens with every control of the layout: logo, file count,
-% Load files, signal list, theme, analyses, Run, the two windows, export,
-% the results matrix with its plot, the table, the log, status and progress;
-% the empty signal list says how to start.
+function test_gui_opens_with_one_analysis_and_every_metric(tc)
+% The main window opens with one analysis, ISO 532-1 loudness, whose menu
+% offers every metric of SQAT_GUI_metrics.
 fig = SQAT_GUI({}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 tc.verifyClass(fig, 'matlab.ui.Figure');
-for tag = {'logo','file_count','load_files','signals_list','theme', ...
-           'add_analysis','analysis_list','run','open_graphs','export', ...
-           'console','results_table','results_matrix','waveform_dock','status','progress'}
-    tc.verifyNotEmpty(findobj(fig, 'Tag', tag{1}), ['missing control: ' tag{1}]);
-end
-tc.verifyNotEmpty(findobj(fig, 'Tag', 'signals_hint'));        % the empty list says how to start
-tc.verifyEqual(findobj(fig, 'Tag', 'run').Text, 'Run Analysis');
-for tag = {'show_plots','save_figures','split_figures','stop_run'}   % Stop is in the progress dialog
-    tc.verifyEmpty(findobj(fig, 'Tag', tag{1}), ['control still there: ' tag{1}]);
-end
-tc.verifyEqual(findobj(fig, 'Tag', 'file_count').Text, 'No files loaded');
-tc.verifyEqual(findobj(fig, 'Tag', 'status').Text, 'Ready');
-tc.verifyEmpty(findobj(fig, 'Tag', 'sqat_figures'), 'the graphs window shows the SQAT figures');
 dd = findobj(fig, 'Tag', 'analysis_metric_1');
 m = SQAT_GUI_metrics;
 tc.verifyEqual(dd.ItemsData, {m.id});
 tc.verifyEqual(dd.Value, 'Loudness_ISO532_1');                 % one analysis at start
 tc.verifyEmpty(findobj(fig, 'Tag', 'analysis_metric_2'));
-tc.verifyEmpty(findobj(fig, 'Tag', 'channel'), 'the channel is set per signal');
-tc.verifyEmpty(findobj(fig, 'Tag', 'dbfs'), 'the dBFS is set per signal');
 end
 
 function test_gui_called_without_output_keeps_working(tc)
@@ -106,8 +89,9 @@ fig = findall(groot, 'Type', 'figure', 'Tag', 'SQAT_GUI');
 tc.assertNumElements(fig, 1);
 tc.addTeardown(@() delete(fig));
 if il_has_theme()
+    before = char(fig.Theme.BaseColorStyle);
     il_press(fig, 'theme');
-    tc.verifyEqual(char(fig.Theme.BaseColorStyle), 'light');
+    tc.verifyNotEqual(char(fig.Theme.BaseColorStyle), before);
 end
 il_select_metrics(fig, {'Roughness_Daniel1997'});
 il_press(fig, 'run');
@@ -231,13 +215,13 @@ il_select_metrics(fig, {'Loudness_ISO532_1'});
 il_mark_signal(fig, 2, false);                       % only the first is analysed
 tc.verifyEqual(findobj(fig, 'Tag', 'run').Text, ['Run 1 signal ' char(215) ' 1 analysis']);
 il_press(fig, 'run');
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 tc.verifyEqual(unique(T.File), {'tone_mono.wav'});
 tc.verifySubstring(findobj(fig, 'Tag', 'status').Text, '1 file(s)');
 il_mark_signal(fig, 2, true);
 il_mark_signal(fig, 1, false);
 il_press(fig, 'run');
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 tc.verifyEqual(unique(T.File), {'tone_1k_60dB.wav'});
 % nothing ticked: a warning and no run
 il_mark_signal(fig, 2, false);
@@ -247,13 +231,13 @@ tc.verifySubstring(strjoin(findobj(fig, 'Tag', 'console').Value, newline), 'No s
 il_mark_signal(fig, 1, true); il_mark_signal(fig, 2, true);
 il_press(fig, 'run');
 il_remove_signal(fig, 1);
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 tc.verifyEqual(unique(T.File), {'tone_1k_60dB.wav'});
 tc.verifyEqual(il_signal_names(fig), {'tone_1k_60dB.wav'});
 tc.verifyEqual(findobj(fig, 'Tag', 'file_count').Text, '1 file loaded');
 il_remove_signal(fig, 1);
 tc.verifyEqual(findobj(fig, 'Tag', 'file_count').Text, 'No files loaded');
-tc.verifyEmpty(findobj(fig, 'Tag', 'results_table').Data);
+tc.verifyEmpty(il_results(fig));
 il_press(fig, 'run');                                % the interface goes on
 tc.verifySubstring(strjoin(findobj(fig, 'Tag', 'console').Value, newline), 'No files loaded');
 end
@@ -282,9 +266,9 @@ tc.verifyEqual(il_signal_numbers(fig), {'#2'});
 end
 
 function test_gui_theme_switches_between_dark_and_light(tc)
-% The window starts dark, as pySQAT, with the white logo and a sun on the
-% theme button; the button switches to light, with the dark logo, a moon and
-% white in place of the light grey of MATLAB, and back to dark.
+% The window starts as the system has it. In dark it shows the white logo and
+% a sun on the theme button; the button switches to light, with the dark logo,
+% a moon and white in place of the light grey of MATLAB, and back to dark.
 % Before R2025a the window stays light and the button is disabled, with a
 % tooltip naming R2025a.
 fig = SQAT_GUI({}, 'Visible', 'off');
@@ -298,7 +282,10 @@ if ~il_has_theme()                                  % before R2025a: the light l
     tc.verifySubstring(b.Tooltip, 'R2025a');
     return
 end
-tc.verifyEqual(char(fig.Theme.BaseColorStyle), 'dark');         % starts dark, like pySQAT
+if strcmp(char(fig.Theme.BaseColorStyle), 'light')   % a light system: to dark first
+    il_press(fig, 'theme');
+end
+tc.verifyEqual(char(fig.Theme.BaseColorStyle), 'dark');
 tc.verifyTrue(endsWith(logo.ImageSource, 'logo_white.png'));
 tc.verifyTrue(isfile(logo.ImageSource));
 tc.verifyEqual(b.Text, char(9788));                 % a sun
@@ -362,18 +349,16 @@ tc.verifySubstring(findobj(fig, 'Tag', 'status').Text, 'Done');
 end
 
 function test_gui_results_matrix_sets_the_signals_side_by_side(tc)
-% After a run the Results tab holds a matrix: one row per analysis and
-% quantity, one column per signal and channel, each cell the value of the full
-% table; the Waveform tab stays on screen; a removed signal takes its column
-% away.
+% After a run the matrix of single values (the table of the PDF report) has
+% one row per analysis and quantity, one column per signal and channel, each
+% cell the value of the full table; a removed signal takes its column away.
 fig = SQAT_GUI({tc.TestData.wav_mono, tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Loudness_ISO532_1', 'Roughness_Daniel1997'});
 il_press(fig, 'run');
-tc.verifyEqual(findobj(fig, 'Type', 'uitab', 'Title', 'Results').Parent.SelectedTab.Title, 'Waveform');   % the player stays on screen
-M = findobj(fig, 'Tag', 'results_matrix');
+M = il_gui_state(fig, 'matrix');
 tc.verifyEqual(M.ColumnName(:)', {'Analysis', 'Quantity', 'Signal #1, ch1', 'Signal #2, ch1'});
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 row = find(strcmp(M.Data(:, 2), 'N5 (sone)'));
 tc.assertNumElements(row, 1);
 tc.verifyEqual(M.Data{row, 3}, T.Value(strcmp(T.File, 'tone_mono.wav') & strcmp(T.Quantity, 'N5')));
@@ -381,6 +366,7 @@ tc.verifyEqual(M.Data{row, 4}, T.Value(strcmp(T.File, 'tone_1k_60dB.wav') & strc
 tc.verifyEmpty(find(strcmp(M.Data(:, 2), 'N10 (sone)'), 1));     % percentiles: only 5 and 90 %
 tc.verifyNotEmpty(find(strcmp(M.Data(:, 2), 'N90 (sone)'), 1));
 il_remove_signal(fig, 1);
+M = il_gui_state(fig, 'matrix');
 tc.verifyEqual(M.ColumnName(:)', {'Analysis', 'Quantity', 'Signal #2, ch1'});
 end
 
@@ -392,7 +378,7 @@ fig = SQAT_GUI({tc.TestData.wav_mono, tc.TestData.wav_stereo}, 'Visible', 'off')
 tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Loudness_ISO532_1', 'Roughness_Daniel1997'});
 il_press(fig, 'run');
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 % the first quantity of #1: the mono file, then channels 1 and 2 of the stereo one
 tc.verifyEqual(T.File(1:3), {'tone_mono.wav'; 'tone_stereo.wav'; 'tone_stereo.wav'});
 tc.verifyEqual(T.Channel(1:3), {'1'; '1'; '2'});
@@ -405,7 +391,7 @@ tc.verifyNotEqual(T.Quantity{4}, T.Quantity{1});
 a = str2double(erase(T.Analysis, '#'));
 tc.verifyTrue(issorted(a));
 % the matrix gives the mono signal one column and each channel of the stereo one its own
-M = findobj(fig, 'Tag', 'results_matrix');
+M = il_gui_state(fig, 'matrix');
 tc.verifyEqual(M.ColumnName(:)', {'Analysis', 'Quantity', 'Signal #1, ch1', 'Signal #2, ch1', 'Signal #2, ch2'});
 end
 
@@ -418,7 +404,7 @@ tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Loudness_ISO532_1', 'Loudness_ECMA418_2'});
 il_signal_channel(fig, 1, 'All');
 il_press(fig, 'run');
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 iso = T(strcmp(T.Metric, 'Loudness_ISO532_1'), :);
 ecma = T(strcmp(T.Metric, 'Loudness_ECMA418_2'), :);
 tc.verifyEqual(unique(iso.Channel, 'stable'), {'1'; '2'});
@@ -470,7 +456,7 @@ c.Value = 1; c.ValueChangedFcn(c, []);          % stationary again, for the run
 il_press(fig, 'add_analysis');                  % the window stays open while the list changes
 tc.verifyTrue(isvalid(pw));
 il_press(fig, 'run');
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 tc.verifyTrue(any(strcmp(T.Quantity, 'Loudness')));
 tc.verifyFalse(any(strcmp(T.Quantity, 'N5')));
 end
@@ -482,7 +468,7 @@ fig = SQAT_GUI({tc.TestData.wav_mono, tc.TestData.wav_stereo}, 'Visible', 'off')
 tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Loudness_ISO532_1','Roughness_Daniel1997'});
 il_press(fig, 'run');
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 tc.verifyEqual(unique(T.File), {'tone_mono.wav'; 'tone_stereo.wav'});
 tc.verifyEqual(unique(T.Metric), {'Loudness_ISO532_1'; 'Roughness_Daniel1997'});
 % the value shown is the value of the metric
@@ -528,7 +514,7 @@ second = strfind(log, 'Running Loudness_ISO532_1 on tone_mono.wav');
 tc.assertNotEmpty(first);
 tc.assertNotEmpty(second);
 tc.verifyLessThan(first(1), second(1), 'the active file was not analysed first');
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 tc.verifyEqual(unique(T.File), {'tone_1k_60dB.wav'; 'tone_mono.wav'});
 end
 
@@ -542,8 +528,8 @@ il_select_metrics(fig, {'Roughness_Daniel1997'});
 il_press(fig, 'run');
 xlsx = fullfile(tc.TestData.dir_tmp, 'results.xlsx');
 describe = getappdata(fig, 'sqat_run_description');
-SQAT_GUI_export(findobj(fig, 'Tag', 'results_table').Data, xlsx, describe());
-T = findobj(fig, 'Tag', 'results_table').Data;
+SQAT_GUI_export(il_results(fig), xlsx, describe());
+T = il_results(fig);
 R = readtable(xlsx, 'Sheet', 'Results', 'TextType', 'char');
 tc.verifyEqual(R.Quantity, T.Quantity);
 tc.verifyEqual(R.Value, T.Value, 'AbsTol', 1e-12);
@@ -575,7 +561,7 @@ il_press(fig, 'run');
 stop(tm);
 describe = getappdata(fig, 'sqat_run_description');
 S = describe();
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 tc.assertEqual(unique(T.File), {'tone_mono.wav'});      % the active signal ran, then the run stopped
 tc.verifyEqual(S.Item(startsWith(S.Item, 'Signal')), {'Signal #1'});
 il_press(fig, 'run');                                   % both, then the second leaves
@@ -625,22 +611,20 @@ tc.verifyEqual(findobj(fig2, 'Tag', 'analysis_metric_2').Value, 'Loudness_ISO532
 end
 
 function test_gui_marks_the_results_when_a_setting_changes(tc)
-% The results tab is marked "settings changed" when a parameter or the
-% calibration of a signal with results changes, and the mark goes away with
-% the next run.
+% The results are marked as out of date when a parameter or the calibration
+% of a signal with results changes, and the mark goes away with the next run.
 fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Loudness_ISO532_1'});
 il_press(fig, 'run');
-tab = findobj(fig, 'Type', 'uitab', 'Title', 'Results');
-tc.assertNumElements(tab, 1);
+tc.assertFalse(il_gui_state(fig, 'stale'));
 pw = il_open_params(fig, 1);
 c = findobj(pw, 'Tag', 'param_method'); c.Value = 1; c.ValueChangedFcn(c, []);
-tc.verifySubstring(tab.Title, 'settings changed');
+tc.verifyTrue(il_gui_state(fig, 'stale'));
 il_press(fig, 'run');
-tc.verifyEqual(tab.Title, 'Results');
+tc.verifyFalse(il_gui_state(fig, 'stale'));
 il_signal_dbfs(fig, 1, 100);                         % the calibration of a signal with results
-tc.verifySubstring(tab.Title, 'settings changed');
+tc.verifyTrue(il_gui_state(fig, 'stale'));
 end
 
 function test_gui_keeps_the_mark_only_for_a_real_change(tc)
@@ -649,13 +633,12 @@ fig = SQAT_GUI({tc.TestData.wav_mono, tc.TestData.wav_tone}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Loudness_ISO532_1'});
 il_press(fig, 'run');
-tab = findobj(fig, 'Type', 'uitab', 'Title', 'Results');
 pw = il_open_params(fig, 1);
 b = findobj(pw, 'Tag', 'params_reset'); b.ButtonPushedFcn(b, []);
-tc.verifyEqual(tab.Title, 'Results');
+tc.verifyFalse(il_gui_state(fig, 'stale'));
 c = findobj(pw, 'Tag', 'param_method'); c.Value = 1; c.ValueChangedFcn(c, []);
 il_remove_signal(fig, 1);
-tc.verifySubstring(tab.Title, 'settings changed');
+tc.verifyTrue(il_gui_state(fig, 'stale'));
 tc.verifySubstring(findobj(fig, 'Tag', 'status').Text, 'Settings changed');
 end
 
@@ -809,7 +792,7 @@ tc.verifyTrue(set_calibration(1, 'calibrator', 94, cal));
 tc.verifyEqual(findobj(fig, 'Tag', 'signal_cal_1').Text, 'calib. 94 dB');
 il_select_metrics(fig, {'Loudness_ISO532_1'});
 il_press(fig, 'run');
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 full = @(c) T.Cal_dB_SPL(find(strcmp(T.Channel, c), 1));
 tc.verifyEqual(full('1'), 94 - 20*log10(0.5/sqrt(2)), 'AbsTol', 1e-4);
 tc.verifyEqual(full('2'), 94 - 20*log10(0.25/sqrt(2)), 'AbsTol', 1e-4);
@@ -838,7 +821,7 @@ tc.verifyTrue(set_calibration(1, 'calibrator', 94, cal));
 tc.verifyEqual(findobj(fig, 'Tag', 'signal_cal_1').Text, 'calib. 94 dB');
 il_select_metrics(fig, {'Loudness_ISO532_1'});
 il_press(fig, 'run');
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 full = @(c) T.Cal_dB_SPL(find(strcmp(T.Channel, c), 1));
 tc.verifyEqual([full('1') full('2')], 94 - 20*log10([0.5 0.25]/sqrt(2)), 'AbsTol', 1e-4);
 describe = getappdata(fig, 'sqat_run_description');
@@ -920,7 +903,7 @@ tc.verifySubstring(log, 'ERROR');
 tc.verifySubstring(log, 'Loudness_ISO532_1');
 st = findobj(fig, 'Tag', 'status');                            % the status bar names the error in red
 tc.verifySubstring(st.Text, 'error');
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 tc.verifyEqual(unique(T.Metric), {'Roughness_Daniel1997'});
 end
 
@@ -980,7 +963,6 @@ il_menu(fig, 'level_tw_s');                           % Slow ticked, then Fast u
 il_menu(fig, 'level_tw_f');
 L = Do_SLM(x, fs, 'A', 's', 94);
 tc.verifySubstring(strjoin(cellstr(lbl.Text)), sprintf('LASmax = %.1f', max(L)));
-tc.verifyEqual(findobj(fig, 'Tag', 'level_axes').Title.String, 'Sound pressure level (A-weighted, Slow)');
 il_menu(fig, 'level_tw_s');                           % the last one ticked stays
 tc.verifyEqual(findobj(fig, 'Tag', 'level_time_weighting').Text, ['Slow ' char(9662)]);
 cbs = findall(findobj(fig, 'Tag', 'spectrogram').Parent, 'Type', 'colorbar');   % one colour bar, relabelled
@@ -992,7 +974,6 @@ tc.verifySubstring(strjoin(cellstr(lbl.Text)), sprintf('LAS10 = %.1f LAS50 = %.1
 il_menu(fig, 'level_tw_i');                           % all three: one line and three indicators each
 il_menu(fig, 'level_tw_f');
 tc.verifyNumElements(findobj(fig, 'Tag', 'level_line'), 3);
-tc.verifyEqual(findobj(fig, 'Tag', 'level_axes').Title.String, 'Sound pressure level (A-weighted, Fast, Slow, Impulse)');
 tc.verifyEqual(findobj(fig, 'Tag', 'level_time_weighting').Text, ['Fast, Slow, Impulse ' char(9662)]);
 tc.verifyNumElements(cellstr(lbl.Text), 11);
 tc.verifyEqual(ax.YLim, y_A);                         % ticking the time weightings left the y axis
@@ -1217,7 +1198,7 @@ pw = il_open_params(fig, 2);
 c = findobj(pw, 'Tag', 'param_method'); c.Value = 1; c.ValueChangedFcn(c, []);   % stationary
 tc.verifyEqual(findobj(fig, 'Tag', 'analysis_summary_2').Text, 'free field, stationary, skip 0.5 s');
 il_press(fig, 'run');
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 tc.verifyEqual(unique(T.Analysis, 'stable'), {'#1'; '#2'});
 tc.verifyEqual(unique(T.Metric), {'Loudness_ISO532_1'});
 tc.verifyTrue(any(strcmp(T.Quantity(strcmp(T.Analysis, '#1')), 'N5')));
@@ -1245,15 +1226,14 @@ il_press(fig, 'add_analysis');                       % Loudness #1 and #2
 pw = il_open_params(fig, 2);
 c = findobj(pw, 'Tag', 'param_method'); c.Value = 1; c.ValueChangedFcn(c, []);
 il_press(fig, 'run');
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 T2 = T(strcmp(T.Analysis, '#2'), :);
 il_press(fig, 'add_analysis');                       % #3 is not in the run: its removal leaves the results
 b = findobj(fig, 'Tag', 'analysis_remove_3'); b.ButtonPushedFcn(b, []);
-tc.verifyEqual(findobj(fig, 'Tag', 'results_table').Data, T);
+tc.verifyEqual(il_results(fig), T);
 b = findobj(fig, 'Tag', 'analysis_remove_1'); b.ButtonPushedFcn(b, []);
-tc.verifyEqual(findobj(fig, 'Tag', 'results_table').Data, T2);
-tab = findobj(fig, 'Type', 'uitab', 'Title', 'Results');
-tc.verifyNumElements(tab, 1);                        % the rest are still the results of the run
+tc.verifyEqual(il_results(fig), T2);
+tc.verifyFalse(il_gui_state(fig, 'stale'));          % the rest are still the results of the run
 describe = getappdata(fig, 'sqat_run_description');
 S = describe();
 tc.verifyFalse(any(strcmp(S.Item, 'Analysis #1')));
@@ -1468,7 +1448,7 @@ fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
 tc.addTeardown(@() delete(fig));
 il_select_metrics(fig, {'Roughness_ECMA418_2'});
 il_press(fig, 'run');
-tc.verifyNotEmpty(findobj(fig, 'Tag', 'results_table').Data);
+tc.verifyNotEmpty(il_results(fig));
 il_press(fig, 'open_graphs');
 log = strjoin(findobj(fig, 'Tag', 'console').Value, newline);
 tc.assumeSubstring(log, 'could not be drawn', 'the toolbox now draws this figure');
@@ -2355,7 +2335,6 @@ il_set(w, 'spec_enhanced', 'On');
 for tag = {'spec_degree', 'spec_overlap', 'spec_window', 'import_window'}
     tc.verifyEqual(char(findobj(w, 'Tag', tag{1}).Enable), 'off', ['faded: ' tag{1}]);
 end
-tc.verifySubstring(findobj(w, 'Tag', 'spectrogram').Title.String, 'Enhanced STFT');
 md = findobj(w, 'Tag', 'spec_enhanced_mode');
 tc.verifyEqual(char(md.Enable), 'on');
 tc.verifyEqual(md.Value, 'readable');
@@ -2929,6 +2908,19 @@ figs = figs(~startsWith({figs.Tag}, 'SQAT_GUI'));
 end
 
 function v = il_value(fig, file, metric, quantity)
-T = findobj(fig, 'Tag', 'results_table').Data;
+T = il_results(fig);
 v = T.Value(strcmp(T.File, file) & strcmp(T.Metric, metric) & strcmp(T.Quantity, quantity));
+end
+
+function T = il_results(fig)
+% the single values of the last run, one row per signal, channel and quantity
+T = il_gui_state(fig, 'results');
+end
+
+function v = il_gui_state(fig, name)
+% a variable of the open GUI (results, matrix, stale): the tests read the state
+% of a run here, so a change of the layout on screen reaches only this function;
+% functions() gives the workspace that SQAT_GUI shares with its callbacks
+s = functions(getappdata(fig, 'sqat_run_description'));
+v = s.workspace{1}.(name);
 end

@@ -52,6 +52,14 @@ The integration tests keep the background pool off (application data
 `sqat_no_background` on `groot`), so that no enhanced map is computed behind
 them; the four tests of the pool turn it on for themselves (`il_use_pool`).
 
+The GUI lives in the upstream repository and changes there without these
+tests, so the integration tests lean on the layout on screen as little as
+they can. The results of a run come from the GUI itself through one helper,
+`il_gui_state` (the `results`, `matrix` and `stale` variables that `SQAT_GUI`
+shares with its callbacks), and the tests check what the interface computes
+and does; the list of controls, the theme it opens with and the wording of
+titles are left out.
+
 ## MATLAB versions
 
 The tests pass on R2026a (macOS). Two parts of the GUI depend on the version,
