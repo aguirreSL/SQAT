@@ -1012,6 +1012,29 @@ for name = {'spectrogram', 'waveform', 'level'}
 end
 end
 
+function test_gui_saves_the_data_of_the_waveform_tab_as_mat(tc)
+% Save plots with a .mat name writes the data behind the three plots: the signal
+% in pascals, the level per time weighting and the spectrogram in dB SPL
+fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+file = fullfile(tc.TestData.dir_tmp, 'plots.mat');
+setappdata(fig, 'sqat_next_file', file);
+il_press(fig, 'save_wave_plots');
+tc.assertTrue(isfile(file));
+S = load(file);
+tc.verifyEqual(S.fs, 48000);
+tc.verifyEqual(S.channel, 1);
+tc.verifyEqual(numel(S.waveform.time), 3 * 48000);
+tc.verifyEqual(20*log10(rms(S.waveform.pressure_Pa) / 2e-5), 60, 'AbsTol', 0.01);   % the 60 dB tone, in pascals
+tc.verifyEqual(S.level.time_weighting, {'Fast'});
+tc.verifyEqual(size(S.level.SPL_dB, 2), 1);
+tc.verifyEqual(median(S.level.SPL_dB), 60, 'AbsTol', 0.5);
+tc.verifyEqual(size(S.spectrogram.SPL_dB), [numel(S.spectrogram.frequency_Hz), numel(S.spectrogram.time)]);
+[~, i] = max(max(S.spectrogram.SPL_dB, [], 2));
+tc.verifyEqual(S.spectrogram.frequency_Hz(i), 1000, 'AbsTol', 48000/1024);
+tc.verifySubstring(S.spectrogram.title, 'Spectrogram');
+end
+
 function test_gui_draw_filter_ends_a_zoom_of_the_toolbar(tc)
 % A zoom chosen in the toolbar of the axes (the three dots) would take the
 % clicks of the filter tool: Draw filter turns it off, and pan with it.
@@ -1296,6 +1319,76 @@ tc.verifyTrue(ismember('Loudness_ISO532_1_loudness_s1-s2.png', names));
 tc.verifyTrue(ismember('Loudness_ISO532_1_statistics_s1-s2.csv', names));
 c = readcell(fullfile(out_dir, 'Loudness_ISO532_1_statistics_s1-s2.csv'));
 tc.verifyEqual(c(1, :), {'Quantity', 'Signal #1, ch1', 'Signal #2, ch1'});
+tc.verifySubstring(strjoin(findobj(fig, 'Tag', 'console').Value, newline), ['saved to ' out_dir]);
+end
+
+function test_gui_save_dialog_writes_matlab_figures(tc)
+% The format MATLAB figure writes .fig files: the SQAT figure of the signal and
+% the analysis drawn for the export, both hidden here, open shown
+fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+il_select_metrics(fig, {'Loudness_ISO532_1'});
+il_press(fig, 'run');
+il_press(fig, 'open_graphs');
+il_press(il_window('SQAT_GUI_graphs'), 'graph_save');
+d = il_window('SQAT_GUI_save');
+h = findobj(d, 'Tag', 'save_format');
+tc.verifyEqual(h.ItemsData, {'png', 'pdf', 'fig'});
+h.Value = 'fig';
+items = findobj(d, 'Tag', 'save_items');
+kids = items.Children(1).Children;
+aids = arrayfun(@(n) n.NodeData.aid, kids, 'UniformOutput', false);
+items.CheckedNodes = kids(ismember(aids, {'sqat', 'specific_loudness_time'}));
+out_dir = fullfile(tc.TestData.dir_tmp, 'saved_fig'); mkdir(out_dir);
+h = findobj(d, 'Tag', 'save_folder'); h.Value = out_dir;
+il_press(d, 'save_do');
+names = {dir(fullfile(out_dir, '*.fig')).name};
+tc.verifyTrue(any(startsWith(names, 'tone_mono_s1_Loudness_ISO532_1_')), 'the SQAT figure');
+tc.verifyTrue(ismember('Loudness_ISO532_1_specific_loudness_time_s1.fig', names), 'the analysis');
+for name = names
+    g = openfig(fullfile(out_dir, name{1}));
+    tc.addTeardown(@() delete(g));
+    drawnow
+    tc.verifyEqual(char(g.Visible), 'on', [name{1} ' opens shown']);
+    tc.verifyNotEmpty(findobj(g, 'Type', 'axes'), [name{1} ' holds axes']);
+end
+tc.verifyFalse(contains(strjoin(findobj(fig, 'Tag', 'console').Value, newline), 'ERROR'));
+end
+
+function test_gui_save_shows_a_progress_dialog(tc)
+% Save writes PDF files for seconds each: a progress dialog over the graphs
+% window names the file being written (a visible window, as the dialog needs one)
+fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'on');
+tc.addTeardown(@() delete(fig));
+il_select_metrics(fig, {'Loudness_ISO532_1'});
+il_press(fig, 'run');
+il_press(fig, 'open_graphs');
+g = il_window('SQAT_GUI_graphs');
+il_press(g, 'graph_save');
+d = il_window('SQAT_GUI_save');
+items = findobj(d, 'Tag', 'save_items');
+items.CheckedNodes = items.Children(1).Children;       % every figure of the metric
+il_set(d, 'save_all_results', true);                   % and every result
+h = findobj(d, 'Tag', 'save_format'); h.Value = 'pdf';
+out_dir = fullfile(tc.TestData.dir_tmp, 'saved_progress'); mkdir(out_dir);
+h = findobj(d, 'Tag', 'save_folder'); h.Value = out_dir;
+tm = timer('ExecutionMode', 'fixedSpacing', 'Period', 0.05, 'TimerFcn', @(~, ~) record());
+tc.addTeardown(@() delete(tm));
+seen = {};
+    function record()
+        if isappdata(g, 'sqat_task_progress')
+            p = getappdata(g, 'sqat_task_progress');
+            seen{end+1} = struct('value', p.Value, 'message', p.Message);
+        end
+    end
+start(tm);
+il_press(d, 'save_do');
+stop(tm);
+tc.assertNotEmpty(seen, 'no progress dialog during the save');
+tc.verifyTrue(all(cellfun(@(r) startsWith(r.message, 'Writing '), seen)));
+tc.verifyTrue(any(cellfun(@(r) contains(r.message, '.xlsx'), seen)), 'the results count as steps');
+tc.verifyGreaterThan(max(cellfun(@(r) r.value, seen)), 0);
+tc.verifyFalse(isappdata(g, 'sqat_task_progress'), 'the dialog stays after the save');
 tc.verifySubstring(strjoin(findobj(fig, 'Tag', 'console').Value, newline), ['saved to ' out_dir]);
 end
 
@@ -2376,6 +2469,43 @@ for tag = {'spec_degree', 'spec_overlap', 'spec_window', 'import_window'}
 end
 tc.verifyEqual(char(md.Enable), 'off');
 tc.verifyEqual(surf().CData, c_plain);
+end
+
+function test_waveform_spectrogram_frequency_axis_switch(tc)
+% The frequency axis of the spectrogram is log by default and switches to
+% linear, for the plain and the enhanced map. On a linear axis the enhanced map
+% is resampled onto 1024 rows of equal width; the tone stays at 1 kHz and its
+% loudest cell keeps its level
+fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+w = fig;
+ax = findobj(w, 'Tag', 'spectrogram');
+surf = @() findobj(ax, 'Type', 'surface');
+tc.verifyEqual(findobj(w, 'Tag', 'spec_scale').Value, 'log');
+tc.verifyEqual(ax.YScale, 'log');
+il_set(w, 'spec_scale', 'linear');
+tc.verifyEqual(ax.YScale, 'linear');
+sf = surf();
+[~, i] = max(max(sf.CData, [], 2));
+tc.verifyEqual(sf.YData(i), 1000, 'AbsTol', 48000/1024);      % the plain map keeps its bins
+il_set(w, 'spec_scale', 'log');
+il_set(w, 'spec_enhanced', 'On');
+c_log = surf().CData;
+tc.verifyEqual(ax.YScale, 'log');
+il_set(w, 'spec_scale', 'linear');
+sf = surf();
+tc.verifyEqual(ax.YScale, 'linear');
+tc.verifyEqual(sf.FaceColor, 'texturemap');
+tc.verifyEqual(size(sf.CData, 1), 1024);
+tc.verifyEqual(size(sf.CData, 2), size(c_log, 2));
+rows = linspace(sf.YData(1), sf.YData(2), 2*1024 + 1);
+rows = rows(2:2:end);                                           % the centres of the rows
+[~, i] = max(max(sf.CData, [], 2));
+tc.verifyEqual(rows(i), 1000, 'AbsTol', diff(sf.YData)/1024);
+tc.verifyEqual(max(sf.CData, [], 'all'), max(c_log, [], 'all'), 'AbsTol', 1e-9);
+il_set(w, 'spec_scale', 'log');
+tc.verifyEqual(ax.YScale, 'log');
+tc.verifyEqual(surf().CData, c_log);
 end
 
 function test_enhanced_stft_zoom_recomputes(tc)
