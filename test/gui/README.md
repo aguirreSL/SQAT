@@ -52,6 +52,24 @@ The integration tests keep the background pool off (application data
 `sqat_no_background` on `groot`), so that no enhanced map is computed behind
 them; the four tests of the pool turn it on for themselves (`il_use_pool`).
 
+The GUI lives in the upstream repository and changes there without these
+tests, so the integration tests read the state of the GUI, never its look.
+The rules, so that a change of layout, wording, font or colour upstream
+leaves the tests standing:
+
+- a control is found by its `Tag`, never by its text or title;
+- the state of a run comes from the GUI itself through `il_gui_state` (the
+  `results`, `matrix`, `stale`, `loaded`, `analyses` and `active_idx`
+  variables that `SQAT_GUI` shares with its callbacks), the state of the
+  player through `il_playing` (the `sqat_play` application data);
+- a menu, tree or tab is read through the data behind its entries
+  (`ItemsData`, `NodeData`, `UserData`), never through the entries' text;
+- where a label shows a value (a calibration, a time skip, a count, a unit),
+  the test looks for the value inside the text and leaves the wording alone;
+- the list of controls, the theme the window opens with, the wording of
+  titles and captions, fonts, colours and the sizes of the layout are not
+  tested.
+
 ## MATLAB versions
 
 The tests pass on R2026a (macOS). Two parts of the GUI depend on the version,
