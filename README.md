@@ -140,7 +140,7 @@ verify and extend it:
 
 - `GUI`: the graphical user interface for quick analysis and comparison of a
   few sound files (see [Graphical user interface](#graphical-user-interface)
-  and [folder](GUI)).
+  and [folder](gui)).
 - `examples`: an example script for each metric (see [folder](examples)).
 - `sound_files`: reference sounds in .wav format, used mainly by the
   `examples` scripts (see [folder](sound_files)).
@@ -171,7 +171,7 @@ The `main` branch of this repository is where SQAT is actively developed. It may
 # How to cite this repository
 If you use this toolbox in your research, we would be grateful if you help us to gain visibility by citing SQAT. This is the main citation if you need to cite the toolbox repository itself:
 
-> Felix Greco, G., Merino-Martínez, R., Osses, A., & Lotinga, M. J. B. (2025). SQAT: a sound quality analysis toolbox for MATLAB. Zenodo. DOI: [10.5281/zenodo.7934709](https://doi.org/10.5281/zenodo.7934709)
+> Felix Greco, G., Merino-Martínez, R., Osses, A., & Lotinga, M. J. B. (2026). SQAT: a sound quality analysis toolbox for MATLAB. Zenodo. DOI: [10.5281/zenodo.7934709](https://doi.org/10.5281/zenodo.7934709)
 
 > [!TIP]
 > **The doi above concerns the toolbox repository itself and will always resolve to the latest release. As differences between releases may occur, it is a good practice to cite the specific SQAT version being used. You can check any changes between releases [here](https://github.com/ggrecow/SQAT/releases). If you need to cite a specific release, please consult the relevant DOI [here](https://doi.org/10.5281/zenodo.7934709). If you need to cite the current SQAT release, please refer to the "Cite this repository" feature in the "About" section of this GitHub repository.**
@@ -404,3 +404,5 @@ Some implementations in SQAT are licensed differently, because they derive from 
 # Disclaimer
 
 The SQAT toolbox and all files within it are provided "AS IS", WITHOUT WARRANTY OF ANY KIND, express or implied, including but not limited to the warranties of MERCHANTABILITY and FITNESS FOR A PARTICULAR PURPOSE. In no event shall the authors or copyright holders be liable for any claim, damages or other liability arising from the use of SQAT.
+
+SQAT is an independent academic project. It is not affiliated with, endorsed by, or developed on behalf of any company or commercial software.
