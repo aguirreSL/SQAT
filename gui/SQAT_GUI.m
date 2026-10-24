@@ -1098,7 +1098,7 @@ end
         uispinner(sw, 'Value', 50, 'Limits', [0 95], 'Step', 5, 'Tag', 'spec_overlap', ...
             'ValueChangedFcn', @on_spec_option, 'Tooltip', 'Overlap of the frames (0 to 95); use the arrows');
         uilabel(sw, 'Text', '  Frequency axis:');
-        uidropdown(sw, 'Items', {'Log', 'Linear'}, 'ItemsData', {'log', 'linear'}, 'Value', 'log', ...
+        uidropdown(sw, 'Items', {'Linear', 'Log'}, 'ItemsData', {'linear', 'log'}, 'Value', 'linear', ...
             'Tag', 'spec_scale', 'ValueChangedFcn', @on_spec_option, ...
             'Tooltip', 'Scale of the frequency axis of the spectrogram, plain or enhanced');
         uilabel(sw, 'Text', '');
@@ -1203,7 +1203,8 @@ end
 
     function on_save_wave_plots(~, ~)
         % the three plots of the Waveform tab as they are on screen (zoom included),
-        % one file each: <name>_spectrogram, <name>_waveform and <name>_level
+        % one file each: <name>_spectrogram, <name>_waveform and <name>_level; a
+        % .fig holds the three in one figure, a .mat the data behind them
         if isempty(wave_x)
             write_log('No file loaded.');
             return
@@ -1215,8 +1216,9 @@ end
             path = getappdata(fig, 'sqat_next_file');
             rmappdata(fig, 'sqat_next_file');
         else
-            exts = {'.png', '.pdf', '.mat'};
+            exts = {'.png', '.pdf', '.fig', '.mat'};
             [name, folder, k] = uiputfile({'*.png', 'PNG image (*.png)'; '*.pdf', 'PDF (*.pdf)'; ...
+                '*.fig', 'MATLAB figure with the three plots (*.fig)'; ...
                 '*.mat', 'MAT-file with the data of the plots (*.mat)'}, ...
                 'Save the plots', fullfile(save_folder, [base '.png']));
             focus_gui();
@@ -1233,6 +1235,10 @@ end
         save_folder = folder;
         if strcmp(ext, '.mat')
             save_wave_data(path);
+            return
+        end
+        if strcmp(ext, '.fig')
+            save_wave_figure(folder, [base ext]);
             return
         end
         n = 0;
@@ -1269,6 +1275,38 @@ end
                 'title', char(ax_spec.Title.String))); %#ok<NASGU>
         save(il_free_path(path), '-struct', 'S');
         write_log(['Data of the plots saved to ' path]);
+    end
+
+    function save_wave_figure(folder, name)
+        % the three plots of the Waveform tab stacked in one MATLAB figure, to open
+        % and edit later. The plots are drawn again in plain axes: the axes of the
+        % window carry callbacks into the GUI, which a .fig would store with them
+        axs = [ax_spec, ax_wave, ax_lvl];
+        y = [0.735 0.415 0.095];                        % the bottom of each plot, top to bottom
+        f = figure('Visible', 'off', 'Color', 'w', 'Position', [100 100 900 1000], ...
+            'Name', 'SQAT: plots of the Waveform tab', 'NumberTitle', 'off');
+        closer = onCleanup(@() delete(f)); %#ok<NASGU>
+        for k = 1:3
+            ax = axs(k);
+            g = axes(f, 'Position', [0.09 y(k) 0.78 0.21]);
+            copyobj(allchild(ax), g);
+            set(g, 'XLim', ax.XLim, 'YLim', ax.YLim, 'XScale', ax.XScale, 'YScale', ax.YScale, ...
+                'YDir', ax.YDir, 'CLim', ax.CLim, 'Colormap', ax.Colormap, 'XGrid', ax.XGrid, ...
+                'YGrid', ax.YGrid, 'Box', ax.Box, 'Layer', ax.Layer, 'TickDir', ax.TickDir);
+            title(g, ax.Title.String, 'Interpreter', 'none');
+            xlabel(g, 'Time (s)');
+            ylabel(g, ax.YLabel.String, 'Interpreter', 'none');
+            if ~isempty(ax.Colorbar)                    % in the margin, so the time axes line up
+                cb = colorbar(g, 'Position', [0.885 y(k) 0.02 0.21]);
+                cb.Label.String = ax.Colorbar.Label.String;
+            end
+            if ~isempty(ax.Legend)
+                legend(g, ax.Legend.String, 'Interpreter', 'none', 'Location', 'southwest', ...
+                    'Orientation', 'horizontal', 'Box', 'off');
+            end
+        end
+        il_export(f, folder, name);
+        write_log(['Figure of the plots saved to ' fullfile(folder, name)]);
     end
 
     function wave_appdata()

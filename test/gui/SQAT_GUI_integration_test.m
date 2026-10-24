@@ -1012,6 +1012,43 @@ for name = {'spectrogram', 'waveform', 'level'}
 end
 end
 
+function test_gui_saves_the_plots_of_the_waveform_tab_as_fig(tc)
+% Save plots with a .fig name writes one MATLAB figure with the three plots
+% stacked, drawn hidden, that opens shown: the spectrogram with its colour
+% scale, the waveform and the sound level, each with its time axis
+fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+file = fullfile(tc.TestData.dir_tmp, 'plots.fig');
+setappdata(fig, 'sqat_next_file', file);
+il_press(fig, 'save_wave_plots');
+tc.assertTrue(isfile(file));
+g = openfig(file);
+tc.addTeardown(@() delete(g));
+drawnow
+tc.verifyEqual(char(g.Visible), 'on');
+axs = findobj(g, 'Type', 'axes');
+tc.assertNumElements(axs, 3);
+[~, order] = sort(arrayfun(@(a) a.Position(2), axs), 'descend');   % top to bottom
+axs = axs(order);
+tc.verifySubstring(axs(1).Title.String, 'Spectrogram');
+tc.verifyEqual(axs(1).YScale, findobj(fig, 'Tag', 'spectrogram').YScale);
+tc.verifyEqual(axs(1).Colormap, load('cmap_inferno.txt'));
+tc.verifyEqual(axs(1).Colorbar.Label.String, 'SPL (dB SPL)');
+sf = findobj(axs(1), 'Type', 'surface');
+tc.assertNumElements(sf, 1);
+tc.verifyEqual(max(sf.CData(:)), 60, 'AbsTol', 1.5);
+tc.verifySubstring(axs(2).Title.String, 'Waveform');
+tc.verifyEqual(axs(2).YLabel.String, 'Sound pressure (Pa)');
+tc.verifySubstring(axs(3).Title.String, 'Sound pressure level');
+tc.verifyEqual(axs(3).YLabel.String, 'SPL (dB SPL)');
+for k = 1:3
+    tc.verifyEqual(axs(k).XLabel.String, 'Time (s)');
+    tc.verifyEqual(axs(k).XLim, [0 3], 'AbsTol', 0.05);
+end
+tc.verifyLessThan(dir(file).bytes, 5e6, 'the file holds plots, no workspace of the GUI');
+tc.verifyFalse(contains(strjoin(findobj(fig, 'Tag', 'console').Value, newline), 'ERROR'));
+end
+
 function test_gui_saves_the_data_of_the_waveform_tab_as_mat(tc)
 % Save plots with a .mat name writes the data behind the three plots: the signal
 % in pascals, the level per time weighting and the spectrogram in dB SPL
@@ -1947,7 +1984,7 @@ w = fig;
 ax = findobj(w, 'Tag', 'spectrogram');
 tc.assertNumElements(ax, 1);
 tc.verifyEqual(ax.Colormap, load('cmap_inferno.txt'));
-tc.verifyEqual(ax.YScale, 'log');
+tc.verifyEqual(ax.YScale, 'linear');
 sf = findobj(ax, 'Type', 'surface');
 tc.assertNumElements(sf, 1);
 % level in dB SPL: the 60 dB tone peaks at 60 dB, less the scalloping of the window
@@ -2472,8 +2509,8 @@ tc.verifyEqual(surf().CData, c_plain);
 end
 
 function test_waveform_spectrogram_frequency_axis_switch(tc)
-% The frequency axis of the spectrogram is log by default and switches to
-% linear, for the plain and the enhanced map. On a linear axis the enhanced map
+% The frequency axis of the spectrogram is linear by default and switches to
+% log, for the plain and the enhanced map. On a linear axis the enhanced map
 % is resampled onto 1024 rows of equal width; the tone stays at 1 kHz and its
 % loudest cell keeps its level
 fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
@@ -2481,14 +2518,13 @@ tc.addTeardown(@() delete(fig));
 w = fig;
 ax = findobj(w, 'Tag', 'spectrogram');
 surf = @() findobj(ax, 'Type', 'surface');
-tc.verifyEqual(findobj(w, 'Tag', 'spec_scale').Value, 'log');
-tc.verifyEqual(ax.YScale, 'log');
-il_set(w, 'spec_scale', 'linear');
+tc.verifyEqual(findobj(w, 'Tag', 'spec_scale').Value, 'linear');
 tc.verifyEqual(ax.YScale, 'linear');
 sf = surf();
 [~, i] = max(max(sf.CData, [], 2));
 tc.verifyEqual(sf.YData(i), 1000, 'AbsTol', 48000/1024);      % the plain map keeps its bins
 il_set(w, 'spec_scale', 'log');
+tc.verifyEqual(ax.YScale, 'log');
 il_set(w, 'spec_enhanced', 'On');
 c_log = surf().CData;
 tc.verifyEqual(ax.YScale, 'log');
