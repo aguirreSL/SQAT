@@ -1,5 +1,10 @@
 ![Logo_long](https://github.com/ggrecow/SQAT/assets/101704265/2800e3c7-183e-4177-b011-63fc5ed3c589)
 
+[![Release](https://img.shields.io/github/v/release/ggrecow/SQAT)](https://github.com/ggrecow/SQAT/releases/latest)
+[![License](https://img.shields.io/github/license/ggrecow/SQAT)](LICENSE)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.7934709-blue)](https://doi.org/10.5281/zenodo.7934709)
+[![Open in MATLAB Online](https://www.mathworks.com/images/responsive/global/open-in-matlab-online.svg)](https://matlab.mathworks.com/open/github/v1?repo=ggrecow/SQAT&file=gui/SQAT_GUI.m)
+ 
 # SQAT: a sound quality analysis toolbox for MATLAB
 
 **SQAT** (**S**ound **Q**uality **A**nalysis **T**oolbox) is an open-source MATLAB toolbox for quantitative sound quality analysis. It
@@ -113,11 +118,13 @@ results as the codebase for the same input parameters.
 The GUI is meant for exploratory work, such as checking a few signals or
 comparing alternatives side by side. To analyse a large number of signals,
 or to build scripted and reproducible workflows, we recommend calling the
-SQAT functions directly from your own code (see the [examples](examples/sound_level_meter) scripts in the
+SQAT functions directly from your own code (see the [examples](examples) scripts in the
 repository).
 
 > [!TIP]
-> To open the GUI, run `startup_SQAT.m` once, then run `SQAT_GUI.m`.
+> To open the GUI, run `SQAT_GUI.m` (located in the `gui` folder).
+>
+> You can also try the GUI in your browser without installing anything:  [![Open in MATLAB Online](https://www.mathworks.com/images/responsive/global/open-in-matlab-online.svg)](https://matlab.mathworks.com/open/github/v1?repo=ggrecow/SQAT&file=gui/SQAT_GUI.m), this opens the current development version (`main` branch) in MATLAB Online (MathWorks account required); then click **Run**.
 
 # Toolbox structure
 
@@ -138,7 +145,7 @@ These directories contain everything needed to run SQAT from your own code:
 These directories are not required to run the toolbox, but help you use,
 verify and extend it:
 
-- `GUI`: the graphical user interface for quick analysis and comparison of a
+- `gui`: the graphical user interface for quick analysis and comparison of a
   few sound files (see [Graphical user interface](#graphical-user-interface)
   and [folder](gui)).
 - `examples`: an example script for each metric (see [folder](examples)).
