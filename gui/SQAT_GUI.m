@@ -1079,9 +1079,9 @@ end
         ss.RowHeight = {24, 24};
         ss.RowSpacing = 2;
         ss.Padding = [0 0 0 0];
-        sw = uigridlayout(ss, [1 11]);                  % the plain STFT, and the frequency axis of both
+        sw = uigridlayout(ss, [1 9]);                   % the plain STFT
         sw.Padding = [0 0 0 0];
-        sw.ColumnWidth = {'fit', 'fit', 115, 70, 'fit', 52, 'fit', 52, 'fit', 75, '1x'};
+        sw.ColumnWidth = {'fit', 'fit', 115, 70, 'fit', 52, 'fit', 52, '1x'};
         sw.ColumnSpacing = 6;
         uilabel(sw, 'Text', 'Spectrogram settings:','FontWeight','bold');
         uilabel(sw, 'Text', '  Window:');
@@ -1097,16 +1097,16 @@ end
         uilabel(sw, 'Text', '  Overlap (%):');
         uispinner(sw, 'Value', 50, 'Limits', [0 95], 'Step', 5, 'Tag', 'spec_overlap', ...
             'ValueChangedFcn', @on_spec_option, 'Tooltip', 'Overlap of the frames (0 to 95); use the arrows');
-        uilabel(sw, 'Text', '  Frequency axis:');
-        uidropdown(sw, 'Items', {'Linear', 'Log'}, 'ItemsData', {'linear', 'log'}, 'Value', 'linear', ...
+        uilabel(sw, 'Text', '');
+        sf = uigridlayout(ss, [1 10]);                  % the frequency axis of both maps, the enhanced spectrogram and the filter boxes
+        sf.Padding = [0 0 0 0];
+        sf.ColumnWidth = {'fit', 75, 'fit', 70, 85, 10, 90, 95, 130, '1x'};   % the switch needs room for Off and On
+        sf.ColumnSpacing = 6;
+        uilabel(sf, 'Text', 'Freq. axis:');
+        uidropdown(sf, 'Items', {'Linear', 'Log'}, 'ItemsData', {'linear', 'log'}, 'Value', 'linear', ...
             'Tag', 'spec_scale', 'ValueChangedFcn', @on_spec_option, ...
             'Tooltip', 'Scale of the frequency axis of the spectrogram, plain or enhanced');
-        uilabel(sw, 'Text', '');
-        sf = uigridlayout(ss, [1 8]);                   % the enhanced spectrogram and the filter boxes
-        sf.Padding = [0 0 0 0];
-        sf.ColumnWidth = {'fit', 70, 85, 10, 90, 95, 130, '1x'};   % the switch needs room for Off and On
-        sf.ColumnSpacing = 6;
-        uilabel(sf, 'Text', 'Enhanced:', 'Tooltip', 'Enhanced spectrogram');
+        uilabel(sf, 'Text', '  Enhanced:', 'Tooltip', 'Enhanced spectrogram');
         uiswitch(sf, 'slider', 'Items', {'Off', 'On'}, 'Value', 'Off', 'Tag', 'spec_enhanced', ...
             'ValueChangedFcn', @on_spec_enhanced, ...
             'Tooltip', ['Enhanced spectrogram (consensus): nine windows of 8 to 512 ms, reassigned and combined, ' ...
