@@ -705,6 +705,45 @@ evalc('run(fullfile(basepath_SQAT, ''startup_SQAT.m''))');
 tc.verifyNotEmpty(which('SQAT_GUI'));
 end
 
+%% Image PDF ---------------------------------------------------------------
+
+function test_image_pdf_holds_the_pixels_on_a_page_of_their_size(tc)
+% SQAT_GUI_image_pdf writes one page of the size of the image at the dpi given,
+% with the pixels in one Flate stream, row by row, r g b, without loss.
+rgb = reshape(uint8(10:10:180), [2 3 3]);              % 2 rows, 3 columns
+f = fullfile(tc.TestData.dir_tmp, 'image.pdf');
+SQAT_GUI_image_pdf(rgb, f, 300);
+txt = fileread(f);
+tc.verifyTrue(startsWith(txt, '%PDF-1.4'));
+tc.verifySubstring(txt, '/MediaBox [0 0 0.7200 0.4800]');   % 3 x 2 px at 300 dpi, in points
+tc.verifySubstring(txt, '/Width 3 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode');
+tc.verifySubstring(txt, 'q 0.7200 0 0 0.4800 0 0 cm /Im0 Do Q');
+tc.verifyTrue(endsWith(strtrim(txt), '%%EOF'));
+% the stream inflates to the pixels of the first row, then the second
+fid = fopen(f, 'r'); bytes = fread(fid, '*uint8')'; fclose(fid);
+k = strfind(bytes, uint8('/FlateDecode'));
+k = k + find(bytes(k:end) == uint8(newline), 2);            % after "stream" and its line break
+n = sscanf(txt(strfind(txt, '/FlateDecode /Length') + 20:end), '%d', 1);
+in = java.util.zip.InflaterInputStream(java.io.ByteArrayInputStream(typecast(bytes(k(2):k(2) + n - 1), 'int8')));
+out = zeros(1, 0, 'uint8');
+while true
+    b = in.read();                                          % a byte at a time: 18 of them
+    if b < 0
+        break
+    end
+    out(end+1) = b; %#ok<AGROW>
+end
+expected = reshape(permute(rgb, [3 2 1]), 1, []);
+tc.verifyEqual(out, expected);
+% the offsets of the cross reference table point at the objects
+xref = sscanf(txt(strfind(txt, 'startxref') + 9:end), '%d', 1);
+tc.verifyTrue(startsWith(txt(xref + 1:end), 'xref'));
+offsets = sscanf(txt(xref + 1:end), 'xref 0 6 0000000000 65535 f %d 00000 n %d 00000 n %d 00000 n %d 00000 n %d 00000 n');
+for j = 1:5
+    tc.verifyTrue(startsWith(txt(offsets(j) + 1:end), sprintf('%d 0 obj', j)));
+end
+end
+
 %% Helpers -----------------------------------------------------------------
 
 function a = il_analysis(id, label, kind, x, y, z, xlabel, ylabel, zlabel)
