@@ -961,6 +961,14 @@ il_press(fig, 'save_wave_plots');
 for name = {'spectrogram', 'waveform', 'level'}
     tc.verifyTrue(isfile(fullfile(tc.TestData.dir_tmp, ['plots_' name{1} '.png'])), name{1});
 end
+% as PDF each plot is its PNG on a page of its size, written by the GUI
+setappdata(fig, 'sqat_next_file', fullfile(tc.TestData.dir_tmp, 'plots.pdf'));
+il_press(fig, 'save_wave_plots');
+for name = {'spectrogram', 'waveform', 'level'}
+    pdf = fullfile(tc.TestData.dir_tmp, ['plots_' name{1} '.pdf']);
+    tc.verifyTrue(isfile(pdf), name{1});
+    tc.verifySubstring(fileread(pdf), '/Im0 Do', name{1});
+end
 end
 
 function test_gui_saves_the_plots_of_the_waveform_tab_as_fig(tc)
@@ -1313,6 +1321,46 @@ tc.verifyEqual(c(1, :), {'Quantity', 'Signal #1, ch1', 'Signal #2, ch1'});
 tc.verifySubstring(strjoin(findobj(fig, 'Tag', 'console').Value, newline), ['saved to ' out_dir]);
 end
 
+function test_gui_save_dialog_writes_every_ticked_format(tc)
+% The formats are tick boxes: PNG and PDF ticked write both of the SQAT figure
+% and of the analysis, the statistics CSV goes once, and the PDF of the SQAT
+% figure is one image on a page of its size, written by the GUI. No format
+% ticked keeps the dialog open and says so in the console.
+fig = SQAT_GUI({tc.TestData.wav_mono}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+il_select_metrics(fig, {'Loudness_ISO532_1'});
+il_press(fig, 'run');
+il_press(fig, 'open_graphs');
+il_press(il_window('SQAT_GUI_graphs'), 'graph_save');
+d = il_window('SQAT_GUI_save');
+items = findobj(d, 'Tag', 'save_items');
+kids = items.Children(1).Children;
+aids = arrayfun(@(n) n.NodeData.aid, kids, 'UniformOutput', false);
+items.CheckedNodes = kids(ismember(aids, {'sqat', 'loudness', 'stats'}));
+out_dir = fullfile(tc.TestData.dir_tmp, 'saved_formats'); mkdir(out_dir);
+h = findobj(d, 'Tag', 'save_folder'); h.Value = out_dir;
+set(findobj(d, 'Tag', 'save_png'), 'Value', false);
+il_press(d, 'save_do');
+tc.verifyNotEmpty(il_window('SQAT_GUI_save'));                 % no format: the dialog stays
+tc.verifySubstring(strjoin(findobj(fig, 'Tag', 'console').Value, newline), 'at least one format');
+tc.verifyEmpty(setdiff({dir(out_dir).name}, {'.', '..'}));   % nothing written
+set(findobj(d, 'Tag', 'save_png'), 'Value', true);
+set(findobj(d, 'Tag', 'save_pdf'), 'Value', true);
+il_press(d, 'save_do');
+tc.verifyEmpty(il_window('SQAT_GUI_save'));
+names = {dir(out_dir).name};
+for ext = {'png', 'pdf'}
+    tc.verifyTrue(any(startsWith(names, 'tone_mono_s1_Loudness_ISO532_1_') & endsWith(names, ['.' ext{1}])), ext{1});
+    tc.verifyTrue(ismember(['Loudness_ISO532_1_loudness_s1.' ext{1}], names), ext{1});
+end
+tc.verifyNumElements(dir(fullfile(out_dir, '*.csv')), 1);       % the statistics once
+sqat_pdf = names(startsWith(names, 'tone_mono_s1_Loudness_ISO532_1_') & endsWith(names, '.pdf'));
+txt = fileread(fullfile(out_dir, sqat_pdf{1}));
+tc.verifySubstring(txt, '/Subtype /Image');
+tc.verifySubstring(txt, '/Im0 Do');
+tc.verifySubstring(strjoin(findobj(fig, 'Tag', 'console').Value, newline), '5 file(s) saved');
+end
+
 function test_gui_save_dialog_writes_matlab_figures(tc)
 % The format MATLAB figure writes .fig files: the SQAT figure of the signal and
 % the analysis drawn for the export, both hidden here, open shown
@@ -1323,9 +1371,11 @@ il_press(fig, 'run');
 il_press(fig, 'open_graphs');
 il_press(il_window('SQAT_GUI_graphs'), 'graph_save');
 d = il_window('SQAT_GUI_save');
-h = findobj(d, 'Tag', 'save_format');
-tc.verifyEqual(h.ItemsData, {'png', 'pdf', 'fig'});
-h.Value = 'fig';
+tc.verifyTrue(findobj(d, 'Tag', 'save_png').Value);                % PNG alone at the start
+tc.verifyFalse(findobj(d, 'Tag', 'save_pdf').Value);
+tc.verifyFalse(findobj(d, 'Tag', 'save_fig').Value);
+set(findobj(d, 'Tag', 'save_png'), 'Value', false);
+set(findobj(d, 'Tag', 'save_fig'), 'Value', true);
 items = findobj(d, 'Tag', 'save_items');
 kids = items.Children(1).Children;
 aids = arrayfun(@(n) n.NodeData.aid, kids, 'UniformOutput', false);
@@ -1360,7 +1410,8 @@ d = il_window('SQAT_GUI_save');
 items = findobj(d, 'Tag', 'save_items');
 items.CheckedNodes = items.Children(1).Children;       % every figure of the metric
 il_set(d, 'save_all_results', true);                   % and every result
-h = findobj(d, 'Tag', 'save_format'); h.Value = 'pdf';
+set(findobj(d, 'Tag', 'save_png'), 'Value', false);
+set(findobj(d, 'Tag', 'save_pdf'), 'Value', true);
 out_dir = fullfile(tc.TestData.dir_tmp, 'saved_progress'); mkdir(out_dir);
 h = findobj(d, 'Tag', 'save_folder'); h.Value = out_dir;
 tm = timer('ExecutionMode', 'fixedSpacing', 'Period', 0.05, 'TimerFcn', @(~, ~) record());
@@ -1869,7 +1920,8 @@ tc.verifyEqual(checked.NodeData.key, 'Loudness_ISO532_1');
 tc.verifyNumElements(findobj(d, 'Tag', 'save_signals').CheckedNodes, 2);
 out_dir = fullfile(tc.TestData.dir_tmp, 'saved_graphs'); mkdir(out_dir);
 h = findobj(d, 'Tag', 'save_folder'); h.Value = out_dir;
-h = findobj(d, 'Tag', 'save_format'); h.Value = 'pdf';
+set(findobj(d, 'Tag', 'save_png'), 'Value', false);
+set(findobj(d, 'Tag', 'save_pdf'), 'Value', true);
 il_press(d, 'save_do');
 tc.verifyEqual({dir(fullfile(out_dir, '*.pdf')).name}, {'Loudness_ISO532_1_loudness_s1-s2.pdf'});
 end
