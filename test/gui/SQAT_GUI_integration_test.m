@@ -2458,6 +2458,35 @@ tc.verifyEqual(char(md.Enable), 'off');
 tc.verifyEqual(surf().CData, c_plain);
 end
 
+function test_waveform_spectrogram_colours(tc)
+% The colour scale of the spectrogram is the inferno of the toolbox by default;
+% the dropdown beside the overlap swaps it for a MATLAB one of the same length,
+% keeps the map as it is, and stays usable with the enhanced spectrogram.
+fig = SQAT_GUI({tc.TestData.wav_tone}, 'Visible', 'off');
+tc.addTeardown(@() delete(fig));
+w = fig;
+dd = findobj(w, 'Tag', 'spec_cmap');
+tc.verifyEqual(dd.ItemsData, {'inferno', 'jet', 'parula', 'turbo', 'hot', 'gray'});
+tc.verifyEqual(dd.Value, 'inferno');
+ax = findobj(w, 'Tag', 'spectrogram');
+inferno = load('cmap_inferno.txt');
+tc.verifyEqual(ax.Colormap, inferno, 'AbsTol', 1e-6);
+surf = @() findobj(ax, 'Type', 'surface');
+c = surf().CData;
+il_set(w, 'spec_cmap', 'jet');
+tc.verifyEqual(ax.Colormap, jet(size(inferno, 1)), 'AbsTol', 1e-6);
+tc.verifyEqual(surf().CData, c);                           % the colours change, the map is the same
+il_set(w, 'spec_window', 'rect');                          % a new drawing keeps the choice
+tc.verifyEqual(ax.Colormap, jet(size(inferno, 1)), 'AbsTol', 1e-6);
+il_set(w, 'spec_enhanced', 'On');
+tc.verifyEqual(char(dd.Enable), 'on');                     % both maps take the colours
+il_set(w, 'spec_cmap', 'gray');
+tc.verifyEqual(ax.Colormap, gray(size(inferno, 1)), 'AbsTol', 1e-6);
+il_set(w, 'spec_enhanced', 'Off');
+il_set(w, 'spec_cmap', 'inferno');
+tc.verifyEqual(ax.Colormap, inferno, 'AbsTol', 1e-6);
+end
+
 function test_waveform_spectrogram_frequency_axis_switch(tc)
 % The frequency axis of the spectrogram is linear by default and switches to
 % log, for the plain and the enhanced map. On a linear axis the enhanced map
